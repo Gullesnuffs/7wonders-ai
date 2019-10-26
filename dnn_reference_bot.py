@@ -15,6 +15,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from card import Card, Move
 from card_database import ALL_CARDS, getCardIndex, ALL_WONDERS
+from state import State
 
 #tfe = contrib.eager
 
@@ -203,7 +204,7 @@ class DNNReferenceBot:
                 best = payOption
         return best
 
-    def getPlayerStateTensor(self, state, player):
+    def getPlayerStateTensor(self, state: State, player):
         p = state.players[player]
         tensor = np.zeros((len(ALL_CARDS) + len(ALL_WONDERS) + GOLD_DIMENSION + 10))
         index = 0
