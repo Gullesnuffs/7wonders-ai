@@ -1,6 +1,7 @@
 from enum import Enum
 from termcolor import colored
 
+
 class Color(Enum):
     BROWN = 1
     GREY = 2
@@ -9,6 +10,7 @@ class Color(Enum):
     RED = 5
     GREEN = 6
     PURPLE = 7
+
 
 def colorToTermColor(color):
     if (color == Color.BROWN):
@@ -26,6 +28,7 @@ def colorToTermColor(color):
     if (color == Color.PURPLE):
         return 'magenta'
 
+
 class Resource(Enum):
     CLAY = 1
     ORE = 2
@@ -35,15 +38,17 @@ class Resource(Enum):
     CLOTH = 6
     PAPYRUS = 7
 
+
 RESOURCES = [
-        Resource.CLAY,
-        Resource.ORE,
-        Resource.STONE,
-        Resource.WOOD,
-        Resource.GLASS,
-        Resource.CLOTH,
-        Resource.PAPYRUS,
-        ]
+    Resource.CLAY,
+    Resource.ORE,
+    Resource.STONE,
+    Resource.WOOD,
+    Resource.GLASS,
+    Resource.CLOTH,
+    Resource.PAPYRUS,
+]
+
 
 def resourceToString(resource):
     if (resource == Resource.CLAY):
@@ -62,44 +67,52 @@ def resourceToString(resource):
         return 'P'
     return 'UNKNOWN RESOURCE'
 
+
 class Science(Enum):
     COMPASS = 1
     TABLET = 2
     COG = 3
 
+
 class Cost:
 
-    def __init__(self, gold = 0, resources = []):
+    def __init__(self, gold=0, resources=[]):
         self.gold = gold
         self.resources = resources
 
+
 class Counter:
     pass
+
 
 class Constant(Counter):
 
     def __init__(self, value):
         self.value = value
 
+
 class CardCounter(Counter):
 
-    def __init__(self, color, countSelf = False, countNeighbors = False, multiplier = 1):
+    def __init__(self, color, countSelf=False, countNeighbors=False, multiplier=1):
         self.countSelf = countSelf
         self.countNeighbors = countNeighbors
         self.color = color
         self.multiplier = multiplier
 
+
 class DefeatCounter(Counter):
-    def __init__(self, countSelf = False, countNeighbors = False, multiplier = 1):
+    def __init__(self, countSelf=False, countNeighbors=False, multiplier=1):
         self.countSelf = countSelf
         self.countNeighbors = countNeighbors
         self.multiplier = multiplier
 
+
 class WonderCounter(Counter):
-    def __init__(self, countSelf = False, countNeighbors = False, multiplier = 1):
+    def __init__(self, countSelf=False, countNeighbors=False, multiplier=1):
         self.countSelf = countSelf
         self.countNeighbors = countNeighbors
         self.multiplier = multiplier
+
 
 class ProductionEffect:
 
@@ -112,38 +125,45 @@ class ProductionEffect:
             producesString += resourceToString(resource)
         print('Produces %s' % producesString)
 
+
 class GoldEffect:
 
     def __init__(self, counter):
         self.counter = counter
+
 
 class ScoreEffect:
 
     def __init__(self, counter):
         self.counter = counter
 
+
 class ScienceEffect:
 
     def __init__(self, symbols):
         self.symbols = symbols
+
 
 class MilitaryEffect:
 
     def __init__(self, shields):
         self.shields = shields
 
+
 class TradingEffect:
 
-    def __init__(self, resources, leftNeighbor = False, rightNeighbor = False):
+    def __init__(self, resources, leftNeighbor=False, rightNeighbor=False):
         self.resources = resources
         self.leftNeighbor = leftNeighbor
         self.rightNeighbor = rightNeighbor
 
+
 cardCount = 0
+
 
 class Card:
 
-    def __init__(self, name, color, cost = Cost(), effects = [], chainFrom = []):
+    def __init__(self, name, color, cost=Cost(), effects=[], chainFrom=[]):
         self.name = name
         self.color = color
         self.cost = cost
@@ -161,11 +181,13 @@ class Card:
     def toString(self):
         return colored(self.name, colorToTermColor(self.color))
 
+
 class WonderStage:
 
     def __init__(self, cost, effects):
         self.cost = cost
         self.effects = effects
+
 
 class Wonder:
 
@@ -177,9 +199,10 @@ class Wonder:
     def print(self):
         print(self.name)
 
+
 class PayOption:
 
-    def __init__(self, payBank = 0, payLeft = 0, payRight = 0, isChained = False):
+    def __init__(self, payBank=0, payLeft=0, payRight=0, isChained=False):
         self.payBank = payBank
         self.payLeft = payLeft
         self.payRight = payRight
@@ -211,9 +234,10 @@ class PayOption:
             payingString = ''
         return ('for %d gold%s' % (self.totalCost(), payingString))
 
+
 class Move:
-    
-    def __init__(self, card, payOption = PayOption(), discard = False, buildWonder = False, wonderStageIndex = 0):
+
+    def __init__(self, card, payOption=PayOption(), discard=False, buildWonder=False, wonderStageIndex=0):
         self.card = card
         self.payOption = payOption
         self.discard = discard

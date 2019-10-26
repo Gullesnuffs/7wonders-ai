@@ -2,13 +2,14 @@ import copy
 import random
 import time
 from ortools.graph import pywrapgraph
-from card_database import ALL_WONDERS, getCards, PURPLE_CARDS, MANIFACTURED_RESOURCES, NONMANIFACTURED_RESOURCES
+from card_database import ALL_WONDERS, getCards, PURPLE_CARDS, MANUFACTURED_RESOURCES, NONMANUFACTURED_RESOURCES
 from card import Color, ProductionEffect, Resource, RESOURCES, ScoreEffect, GoldEffect, Constant, CardCounter, TradingEffect, ScienceEffect, Science, MilitaryEffect, DefeatCounter, PayOption, WonderCounter
 from random_bot import RandomBot
 from science_bot import ScienceBot
 
-PRINT = False
+PRINT = True
 PRINT_VERBOSE = False
+
 
 class State:
 
@@ -21,30 +22,30 @@ class State:
         for i in range(self.numPlayers):
             self.players.append(Player(wonders[i], bots[i]))
         for i in range(self.numPlayers):
-            self.players[i].leftNeighbor = self.players[(i+1)%self.numPlayers]
-            self.players[i].rightNeighbor = self.players[(i-1)%self.numPlayers]
+            self.players[i].leftNeighbor = self.players[(i + 1) % self.numPlayers]
+            self.players[i].rightNeighbor = self.players[(i - 1) % self.numPlayers]
 
     def initAge(self, age):
         self.age = age
         cards = getCards(age=self.age, players=len(self.players))
         if age == 3:
-            cards += random.sample(PURPLE_CARDS, self.numPlayers+2)
+            cards += random.sample(PURPLE_CARDS, self.numPlayers + 2)
         random.shuffle(cards)
         for i in range(self.numPlayers):
-            self.players[i].hand = cards[i*7:(i+1)*7]
+            self.players[i].hand = cards[i * 7:(i + 1) * 7]
 
     def getStateFromPerspective(self, perspective):
         state = copy.copy(self)
         state.players = [self.players[perspective]]
-        for i in range(perspective+1, perspective+state.numPlayers):
-            state.players.append(self.players[i%state.numPlayers])
+        for i in range(perspective + 1, perspective + state.numPlayers):
+            state.players.append(self.players[i % state.numPlayers])
         return state
 
     def getHiddenState(self, perspective):
         state = copy.copy(self)
         state.players = [self.players[perspective]]
-        for i in range(perspective+1, perspective+state.numPlayers):
-            state.players.append(self.players[i%state.numPlayers].convertToHidden())
+        for i in range(perspective + 1, perspective + state.numPlayers):
+            state.players.append(self.players[i % state.numPlayers].convertToHidden())
         return state
 
     def countCards(self, player, color):
@@ -62,37 +63,37 @@ class State:
             if counter.countSelf:
                 count += self.countCards(player, counter.color)
             if counter.countNeighbors:
-                count += self.countCards(player-1, counter.color)
-                count += self.countCards((player+1)%self.numPlayers, counter.color)
+                count += self.countCards(player - 1, counter.color)
+                count += self.countCards((player + 1) % self.numPlayers, counter.color)
             return count * counter.multiplier
         if isinstance(counter, DefeatCounter):
             count = 0
             if counter.countSelf:
                 count += len(self.players[player].militaryDefeats)
             if counter.countNeighbors:
-                count += len(self.players[player-1].militaryDefeats)
-                count += len(self.players[(player+1)%self.numPlayers].militaryDefeats)
+                count += len(self.players[player - 1].militaryDefeats)
+                count += len(self.players[(player + 1) % self.numPlayers].militaryDefeats)
             return count * counter.multiplier
         if isinstance(counter, WonderCounter):
             count = 0
             if counter.countSelf:
                 count += self.players[player].numWonderStagesBuilt
             if counter.countNeighbors:
-                count += self.players[player-1].numWonderStagesBuilt
-                count += self.players[(player+1)%self.numPlayers].numWonderStagesBuilt
+                count += self.players[player - 1].numWonderStagesBuilt
+                count += self.players[(player + 1) % self.numPlayers].numWonderStagesBuilt
             return count * counter.multiplier
         return 0
 
     def getScienceScore(self, effects, ind=0, compasses=0, tablets=0, cogs=0):
         if ind == len(effects):
-            return compasses*compasses + tablets*tablets + cogs*cogs + 7*min(compasses, tablets, cogs)
+            return compasses * compasses + tablets * tablets + cogs * cogs + 7 * min(compasses, tablets, cogs)
         bestScore = 0
         if Science.COMPASS in effects[ind].symbols:
-            bestScore = max(bestScore, self.getScienceScore(effects, ind+1, compasses+1, tablets, cogs))
+            bestScore = max(bestScore, self.getScienceScore(effects, ind + 1, compasses + 1, tablets, cogs))
         if Science.TABLET in effects[ind].symbols:
-            bestScore = max(bestScore, self.getScienceScore(effects, ind+1, compasses, tablets+1, cogs))
+            bestScore = max(bestScore, self.getScienceScore(effects, ind + 1, compasses, tablets + 1, cogs))
         if Science.COG in effects[ind].symbols:
-            bestScore = max(bestScore, self.getScienceScore(effects, ind+1, compasses, tablets, cogs+1))
+            bestScore = max(bestScore, self.getScienceScore(effects, ind + 1, compasses, tablets, cogs + 1))
         return bestScore
 
     def getScore(self, playerInd):
@@ -145,10 +146,10 @@ class State:
                 state.applyEffect(effect, i)
         for i in range(state.numPlayers):
             if (state.age == 2):
-                state.players[i].hand = oldHands[(i+1)%len(oldHands)]
+                state.players[i].hand = oldHands[(i + 1) % len(oldHands)]
             else:
-                state.players[i].hand = oldHands[i-1]
-        return state                
+                state.players[i].hand = oldHands[i - 1]
+        return state
 
     def print(self):
         for i in range(self.numPlayers):
@@ -165,7 +166,7 @@ class State:
         if card.chainFromNames.isdisjoint(self.players[player].boughtCardNames):
             return self.getPayOptionsForCost(player, card.cost)
         else:
-            return {PayOption(isChained = True)}
+            return {PayOption(isChained=True)}
 
     def getPayOptionsForCost(self, player, cost):
         payOptions = set()
@@ -180,37 +181,30 @@ class State:
             need[resource] = 0
         for resource in resources:
             need[resource] += 1
-        #print('\n')
-        #print('need: %s' % need)
         production = [[], [], []]
         for i in range(-1, 2):
-            p = self.players[(player + i)%self.numPlayers]
+            p = self.players[(player + i) % self.numPlayers]
             effects = [p.wonder.effect]
             for card in p.boughtCards:
                 if i != 0 and card.color != Color.BROWN and card.color != Color.GREY:
-                    continue;
+                    continue
                 effects += card.effects
-            #print('effects:')
             for effect in effects:
                 if isinstance(effect, ProductionEffect):
-                    #effect.print()
+                    # effect.print()
                     production[i].append(effect.produces)
-        #print('production: %s' % production)
+
         payOptions = self.getPayOptionsSplit(player, need, production)
-        #print('getPayOptions returns')
-        #for option in payOptions:
-        #    option.print()
-        #x = input()
         if False:
             reducedPayOptions = self.getReducedPayOptions(player, need, production)
-            #for option in reducedPayOptions:
+            # for option in reducedPayOptions:
             #    option.print()
             for payOption in payOptions:
                 assert(payOption in reducedPayOptions)
             for payOption in reducedPayOptions:
                 exists = False
-                for l in range(payOption.payLeft+1):
-                    for r in range(payOption.payRight+1):
+                for l in range(payOption.payLeft + 1):
+                    for r in range(payOption.payRight + 1):
                         if(PayOption(payOption.payBank, l, r) in payOptions):
                             exists = True
                 assert(exists)
@@ -225,7 +219,7 @@ class State:
         return 2
 
     def getPayOptionsSplit(self, player, need, production):
-        resources = [MANIFACTURED_RESOURCES, NONMANIFACTURED_RESOURCES]
+        resources = [MANUFACTURED_RESOURCES, NONMANUFACTURED_RESOURCES]
         needSplit = [[], []]
         productionSplit = [[], []]
         for resource, amount in need.items():
@@ -241,19 +235,13 @@ class State:
                     if p[0] in resources[i]:
                         productionSplit[i][j].append(p)
             payOptions.append(self.getPayOptionsOptimized(player, needSplit[i], productionSplit[i]))
-            #print('Pay options of type %d' % i)
-            #for option in payOptions[i]:
-            #    option.print()
         combinedPayOptions = set()
         for p1 in payOptions[0]:
             for p2 in payOptions[1]:
-                combinedPayOptions.add(p1+p2)
+                combinedPayOptions.add(p1 + p2)
         return combinedPayOptions
 
     def getPayOptionsOptimized(self, player, need, production, limit1=100, limit2=100):
-        #print('need: %s' % need)
-        #print('production: %s' % production)
-        #print('limits: %d, %d' % (limit1, limit2))
         minCostFlow = pywrapgraph.SimpleMinCostFlow()
         totNeed = 0
         numNeed = len(need)
@@ -262,11 +250,11 @@ class State:
             totNeed += amount
             minCostFlow.SetNodeSupply(i, -amount)
         minCostFlow.SetNodeSupply(numNeed, 100)
-        minCostFlow.SetNodeSupply(numNeed+1, limit1)
-        minCostFlow.SetNodeSupply(numNeed+2, limit2)
-        nodeCount = numNeed+3
+        minCostFlow.SetNodeSupply(numNeed + 1, limit1)
+        minCostFlow.SetNodeSupply(numNeed + 2, limit2)
+        nodeCount = numNeed + 3
         for i in range(3):
-            sourceNode = numNeed+i
+            sourceNode = numNeed + i
             for j in range(len(production[i])):
                 costOfUse = self.costOfBuying(player, i, production[i][j][0])
                 minCostFlow.AddArcWithCapacityAndUnitCost(sourceNode, nodeCount, 1, costOfUse)
@@ -276,42 +264,27 @@ class State:
                         minCostFlow.AddArcWithCapacityAndUnitCost(nodeCount, k, 1, 0)
                 nodeCount += 1
         minCostFlow.SolveMaxFlowWithMinCost()
-        #print('Minimum cost:', minCostFlow.OptimalCost())
-        #print('')
-        #print('  Arc    Flow / Capacity  Cost')
-        #for i in range(minCostFlow.NumArcs()):
-        #    cost = minCostFlow.Flow(i) * minCostFlow.UnitCost(i)
-        #    print('%1s -> %1s   %3s  / %3s       %3s' % (
-        #        minCostFlow.Tail(i),
-        #        minCostFlow.Head(i),
-        #        minCostFlow.Flow(i),
-        #        minCostFlow.Capacity(i),cost))
         boughtFromPlayer = [0, 0, 0]
         payToPlayer = [0, 0, 0]
         for i in range(minCostFlow.NumArcs()):
             fromNode = minCostFlow.Tail(i)
-            if fromNode >= numNeed and fromNode < numNeed+3:
-                boughtFromPlayer[fromNode-numNeed] += minCostFlow.Flow(i)
-                payToPlayer[fromNode-numNeed] += minCostFlow.Flow(i) * minCostFlow.UnitCost(i)
-        #print('boughtFromPlayer: ', boughtFromPlayer)
+            if fromNode >= numNeed and fromNode < numNeed + 3:
+                boughtFromPlayer[fromNode - numNeed] += minCostFlow.Flow(i)
+                payToPlayer[fromNode - numNeed] += minCostFlow.Flow(i) * minCostFlow.UnitCost(i)
         if sum(boughtFromPlayer) < totNeed:
             return set()
         payOptions = {PayOption(payToPlayer[0], payToPlayer[1], payToPlayer[2])}
         if boughtFromPlayer[1] > 0:
-            payOptions.update(self.getPayOptionsOptimized(player, need, production, boughtFromPlayer[1]-1, limit2))
+            payOptions.update(self.getPayOptionsOptimized(player, need, production, boughtFromPlayer[1] - 1, limit2))
         if boughtFromPlayer[2] > 0:
-            payOptions.update(self.getPayOptionsOptimized(player, need, production, limit1, boughtFromPlayer[2]-1))
+            payOptions.update(self.getPayOptionsOptimized(player, need, production, limit1, boughtFromPlayer[2] - 1))
         return payOptions
-
 
     def getReducedPayOptions(self, player, need, production):
         neededResource = None
-        #print('need: %s' % need)
-        #print('production: %s' % production)
         for resource, amount in need.items():
             if amount > 0:
                 neededResource = resource
-        #print('neededResource: %s' % neededResource)
         if neededResource is None:
             return {PayOption()}
         payOptions = set()
@@ -320,12 +293,9 @@ class State:
             for j in range(len(production[i])):
                 if stopSearch:
                     break
-                #print('production: %s' % production[i][j])
                 if neededResource in production[i][j]:
-                    #print('needed resource is produced')
                     newNeed = copy.copy(need)
                     newNeed[neededResource] -= 1
-                    #print('newNeed: %s' % newNeed)
                     newProduction = copy.deepcopy(production)
                     newProduction[i].pop(j)
                     costOfUse = self.costOfBuying(player, i, neededResource)
@@ -350,7 +320,7 @@ class State:
         elif self.age == 3:
             scoreForVictory = 5
         for i in range(0, self.numPlayers):
-            j = (i+1)%self.numPlayers
+            j = (i + 1) % self.numPlayers
             shieldsI = self.players[i].getNumShields()
             shieldsJ = self.players[j].getNumShields()
             if shieldsI > shieldsJ:
@@ -418,7 +388,7 @@ class Player:
             self.boughtCards.pop()
             self.boughtCardNames.remove(move.card.name)
 
-    def performMove(self, move, removeCardFromHand = True):
+    def performMove(self, move, removeCardFromHand=True):
         if PRINT and removeCardFromHand:
             self.printMove(move)
         if move.buildWonder:
@@ -453,7 +423,8 @@ class Player:
         else:
             payingLeftString = (str(' paying %d gold to the left' % move.payOption.payLeft) if move.payOption.payLeft > 0 else '')
             payingRightString = (str(' paying %d gold to the right' % move.payOption.payRight) if move.payOption.payRight > 0 else '')
-            payingString = (str('%s and%s' % (payingLeftString, payingRightString)) if move.payOption.payLeft > 0 and move.payOption.payRight > 0 else str('%s%s' % (payingLeftString, payingRightString)))
+            payingString = (str('%s and%s' % (payingLeftString, payingRightString)) if move.payOption.payLeft >
+                            0 and move.payOption.payRight > 0 else str('%s%s' % (payingLeftString, payingRightString)))
             chainingString = ' using chaining' if move.payOption.isChained else ''
             print('%s bought %s%s%s' % (self.name, move.card.name, payingString, chainingString))
 
@@ -485,15 +456,17 @@ class Player:
             score -= defeatScore
         return score
 
+
 def playGame(bots):
     playGames(bots, 1)
+
 
 def playGames(bots, numGames):
     startTime = time.time()
     players = len(bots)
     for i in range(players):
         bots[i].PRINT = PRINT
-    #random.seed(1)
+    # random.seed(1)
     allStates = []
     for gameInd in range(numGames):
         allStates.append(State(bots))
@@ -502,9 +475,7 @@ def playGames(bots, numGames):
             allStates[gameInd].initAge(age)
         for pick in range(1, 7):
             if PRINT:
-                print('Age %d Pick %d' %(age, pick))
-            allMoves = []
-            allInputStates = [[] for bot in bots]
+                print('Age %d Pick %d' % (age, pick))
             inputStates = []
             botInd = []
             for bot in bots:
@@ -546,77 +517,10 @@ def playGames(bots, numGames):
         if PRINT:
             state.print()
         for i in range(players):
-            #bots[i].score = state.getScore(i)
             state.players[i].bot.scores.append(state.getScore(i))
         for i in range(players):
             state.players[i].bot.train(state.getStateFromPerspective(i))
     endTime = time.time()
     print("Updating bots took %.3f seconds" % (endTime - startTime))
-    #for i in range(players):
-    #    print('%s: %d' % (bots[i].name, bots[i].score))
-
-def participateInGame(players, bot):
-    players = len(bots)
-    for i in range(players):
-        bots[i].PRINT = PRINT
-    #random.seed(1)
-    allStates = []
-    for gameInd in range(numGames):
-        allStates.append(State(bots))
-    for age in range(1, 4):
-        for gameInd in range(numGames):
-            allStates[gameInd].initAge(age)
-        for pick in range(1, 7):
-            if PRINT:
-                print('Age %d Pick %d' %(age, pick))
-            allMoves = []
-            allInputStates = [[] for bot in bots]
-            inputStates = []
-            botInd = []
-            for bot in bots:
-                inputStates.append([])
-            for gameInd in range(numGames):
-                botInd.append([])
-                for i in range(players):
-                    state = allStates[gameInd]
-                    player = state.players[i]
-                    for j in range(len(bots)):
-                        if bots[j] == player.bot and len(inputStates[j]) <= gameInd:
-                            newInputState = state.getStateFromPerspective(i)
-                            inputStates[j].append(newInputState)
-                            botInd[gameInd].append(j)
-                            break
-            chosenMoves = []
-            for j in range(len(bots)):
-                chosenMoves.append(bots[j].getMoves(inputStates[j]))
-            for gameInd in range(numGames):
-                moves = []
-                state = allStates[gameInd]
-                if PRINT:
-                    state.print()
-                for i in range(players):
-                    player = state.players[i]
-                    moves.append(chosenMoves[botInd[gameInd][i]][gameInd])
-                allStates[gameInd] = state.performMoves(moves)
-                if PRINT:
-                    print('\n')
-        for gameInd in range(numGames):
-            allStates[gameInd].resolveWar()
-    for bot in bots:
-        bot.scores = []
-    endTime = time.time()
-    print("Games took %.3f seconds" % (endTime - startTime))
-    startTime = time.time()
-    for gameInd in range(numGames):
-        state = allStates[gameInd].endGame()
-        if PRINT:
-            state.print()
-        for i in range(players):
-            #bots[i].score = state.getScore(i)
-            state.players[i].bot.scores.append(state.getScore(i))
-        for i in range(players):
-            state.players[i].bot.train(state.getStateFromPerspective(i))
-    endTime = time.time()
-    print("Updating bots took %.3f seconds" % (endTime - startTime))
-    #for i in range(players):
+    # for i in range(players):
     #    print('%s: %d' % (bots[i].name, bots[i].score))

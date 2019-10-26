@@ -1,35 +1,33 @@
 import math
-import random
 from elo import rate_1vs1
-from control import playGame, playGames
+from control import playGames
 from random_bot import RandomBot
 from science_bot import ScienceBot
-from dnn_bot import DNNBot
 from dnn_reference_bot import DNNReferenceBot
 
 randomBot = RandomBot()
 scienceBot = ScienceBot()
-dnnBot = DNNBot(3)
+# dnnReferenceBot = dnnReferenceBot(3)
 dnnReferenceBot = DNNReferenceBot(3)
-#random.seed(2)
-bots = [randomBot, scienceBot, dnnBot]
-debug = False
+# random.seed(2)
+bots = [randomBot, scienceBot, dnnReferenceBot]
+debug = True
 gamesAtATime = 1 if debug else 100
 for bot in bots:
     bot.rating = 1000
 games = 0
 while True:
-    print('Game %d' % (games+1))
-    if ((games//gamesAtATime)%10 == 0):
+    print('Game %d' % (games + 1))
+    if ((games // gamesAtATime) % 10 == 0):
         testingMode = True
     else:
         testingMode = False
     if debug:
         testingMode = True
     if testingMode:
-        bots = [dnnBot, dnnReferenceBot, dnnReferenceBot]
+        bots = [dnnReferenceBot, dnnReferenceBot, dnnReferenceBot]
     else:
-        bots = [dnnBot, dnnBot, dnnBot]
+        bots = [dnnReferenceBot, dnnReferenceBot, dnnReferenceBot]
     for bot in bots:
         bot.testingMode = testingMode
     playGames(bots, gamesAtATime)
@@ -41,13 +39,13 @@ while True:
                     if bots[i] == bots[j]:
                         continue
                     if bots[i].scores[gameInd] > bots[j].scores[gameInd]:
-                        #print('%s defeats %s' % (bots[i].name, bots[j].name))
+                        # print('%s defeats %s' % (bots[i].name, bots[j].name))
                         (newRatingI, newRatingJ) = rate_1vs1(bots[i].rating, bots[j].rating)
                     elif bots[i].scores[gameInd] == bots[j].scores[gameInd]:
-                        #print('%s and %s draw' % (bots[i].name, bots[j].name))
+                        # print('%s and %s draw' % (bots[i].name, bots[j].name))
                         (newRatingI, newRatingJ) = rate_1vs1(bots[i].rating, bots[j].rating, drawn=True)
                     else:
-                        #print('%s defeats %s' % (bots[j].name, bots[i].name))
+                        # print('%s defeats %s' % (bots[j].name, bots[i].name))
                         (newRatingJ, newRatingI) = rate_1vs1(bots[j].rating, bots[i].rating)
                     bots[i].rating = bots[i].rating * (1 - factor) + newRatingI * factor
                     bots[j].rating = bots[j].rating * (1 - factor) + newRatingJ * factor
@@ -56,4 +54,3 @@ while True:
         for bot in bots:
             print('%s\'s rating: %d' % (bot.name, bot.rating))
     games += gamesAtATime
-

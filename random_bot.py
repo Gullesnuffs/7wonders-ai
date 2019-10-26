@@ -1,6 +1,7 @@
 import random
 from card import Move
 
+
 class RandomBot:
 
     def __init__(self):
@@ -26,8 +27,8 @@ class RandomBot:
             if bestPayOption is None:
                 continue
             if (bestPayOption.totalCost() <= player.gold):
-                return Move(card = card, payOption = bestPayOption)
-        return Move(card = random.choice(player.hand), discard = True)
+                return Move(card=card, payOption=bestPayOption)
+        return Move(card=random.choice(player.hand), discard=True)
 
     def getMoves(self, states):
         return [self.getMove(state) for state in states]

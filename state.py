@@ -2,6 +2,7 @@ import card_database
 import copy
 import random
 
+
 class State:
 
     def __init__(self, players):
@@ -17,12 +18,12 @@ class State:
         cards = card_database.getCards(age=self.age, players=len(self.players))
         random.shuffle(cards)
         for i in range(self.numPlayers):
-            self.players[i].hand = cards[i*7:(i+1)*7]
+            self.players[i].hand = cards[i * 7:(i + 1) * 7]
 
     def getHiddenState(self, perspective):
         state = copy.copy(self)
         state.players = [self.players[perspective]]
-        for i in range(perspective+1, perspective+state.numPlayers):
+        for i in range(perspective + 1, perspective + state.numPlayers):
             state.players.append(self.players[i].convertToHidden())
         return state
 
@@ -34,16 +35,14 @@ class State:
             oldHands.append(state.players[i].hand)
         for i in range(state.numPlayers):
             if (age == 2):
-                state.players[i].hand = oldHands[i+1]
+                state.players[i].hand = oldHands[i + 1]
             else:
-                state.players[i].hand = oldHands[i-1]
-        return state                
+                state.players[i].hand = oldHands[i - 1]
+        return state
 
     def print(self):
         for player in self.players:
             player.print()
-        
-
 
 
 class Player:
@@ -77,9 +76,6 @@ class Player:
                 break
 
 
-
-
-
 class Bot:
 
     def __init__(self):
@@ -89,9 +85,8 @@ class Bot:
         return random.choice(state.players[0].hand)
 
 
-
-def playGame(players = 3):
-    state = State(players = players)
+def playGame(players=3):
+    state = State(players=players)
     for cardsLeft in range(7, 1, -1):
         moves = []
         for i in range(players):
