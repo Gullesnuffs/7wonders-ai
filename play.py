@@ -4,15 +4,11 @@ from elo import rate_1vs1
 from control import playGame, playGames
 from random_bot import RandomBot
 from science_bot import ScienceBot
-from random_forest_bot import RandomForestBot
-from ml_bot import MLBot
 from dnn_bot import DNNBot
 from dnn_reference_bot import DNNReferenceBot
 
 randomBot = RandomBot()
-#mlBot = MLBot(3)
 scienceBot = ScienceBot()
-#randomForestBot = RandomForestBot(3)
 dnnBot = DNNBot(3)
 dnnReferenceBot = DNNReferenceBot(3)
 #random.seed(2)
