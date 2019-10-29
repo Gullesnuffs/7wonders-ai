@@ -3,9 +3,10 @@ import random
 import time
 from ortools.graph import pywrapgraph
 from card_database import ALL_WONDERS, getCards, PURPLE_CARDS, MANUFACTURED_RESOURCES, NONMANUFACTURED_RESOURCES
-from card import Color, ProductionEffect, Resource, RESOURCES, ScoreEffect, GoldEffect, Constant, CardCounter, TradingEffect, ScienceEffect, Science, MilitaryEffect, DefeatCounter, PayOption, WonderCounter
+from card import Color, ProductionEffect, Resource, RESOURCES, ScoreEffect, GoldEffect, Constant, CardCounter, TradingEffect, ScienceEffect, Science, MilitaryEffect, DefeatCounter, PayOption, WonderCounter, Wonder, Card
 from random_bot import RandomBot
 from science_bot import ScienceBot
+from typing import Optional, List, Set
 
 PRINT = True
 PRINT_VERBOSE = False
@@ -17,10 +18,8 @@ class State:
         bots = copy.copy(bots)
         random.shuffle(bots)
         self.numPlayers = len(bots)
-        self.players = []
         wonders = random.sample(ALL_WONDERS, self.numPlayers)
-        for i in range(self.numPlayers):
-            self.players.append(Player(wonders[i], bots[i]))
+        self.players = [Player(wonder, bot) for wonder, bot in zip(wonders, bots)]
         for i in range(self.numPlayers):
             self.players[i].leftNeighbor = self.players[(i + 1) % self.numPlayers]
             self.players[i].rightNeighbor = self.players[(i - 1) % self.numPlayers]
@@ -181,7 +180,7 @@ class State:
             need[resource] = 0
         for resource in resources:
             need[resource] += 1
-        production = [[], [], []]
+        production: List[List[ProductionEffect]] = [[], [], []]
         for i in range(-1, 2):
             p = self.players[(player + i) % self.numPlayers]
             effects = [p.wonder.effect]
@@ -339,21 +338,23 @@ class State:
 
 class Player:
 
-    def __init__(self, wonder, bot):
+    def __init__(self, wonder: Wonder, bot):
         self.wonder = wonder
         self.name = self.wonder.name + ' (' + bot.name + ')'
         self.bot = bot
-        self.boughtCards = []
-        self.boughtCardNames = set()
-        self.gold = 3
-        self.tradingEffects = []
-        self.militaryVictories = []
-        self.militaryDefeats = []
+        self.boughtCards: List[Card] = []
+        self.boughtCardNames: Set[str] = set()
+        self.gold: int = 3
+        self.tradingEffects: List[TradingEffect] = []
+        self.militaryVictories: List[int] = []
+        self.militaryDefeats: List[int] = []
         self.tensors = []
         self.bestMoveScores = []
         self.numWonderStagesBuilt = 0
         self.stateTensors = []
         self.allHandTensors = []
+        self.leftNeighbor: Player = None
+        self.rightNeighbor: Player = None
 
     def print(self, score):
         print(self.name)
