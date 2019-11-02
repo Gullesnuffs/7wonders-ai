@@ -128,27 +128,39 @@ class State:
         elif isinstance(effect, TradingEffect):
             self.players[player].tradingEffects.append(effect)
 
+    # This method is kept for compatibility
+    # but it does weird things. The players in this state will be modified
+    # even though a copy of the state is returned. The copy of the state is only a shallow copy.
     def performMoves(self, moves):
         state = copy.copy(self)
+        state.performMovesInPlace(moves)
+        return state
+
+    # Like performMoves, but does a proper deep copy
+    def performMovesDeep(self, moves):
+        state = copy.deepcopy(self)
+        state.performMovesInPlace(moves)
+        return state
+
+    def performMovesInPlace(self, moves):
         oldHands = []
-        for i in range(state.numPlayers):
-            state.players[i].performMove(moves[i])
-            oldHands.append(state.players[i].hand)
-        for i in range(state.numPlayers):
+        for i in range(self.numPlayers):
+            self.players[i].performMove(moves[i])
+            oldHands.append(self.players[i].hand)
+        for i in range(self.numPlayers):
             if moves[i].discard:
                 continue
             if moves[i].buildWonder:
-                for effect in state.players[i].wonder.stages[moves[i].wonderStageIndex].effects:
-                    state.applyEffect(effect, i)
+                for effect in self.players[i].wonder.stages[moves[i].wonderStageIndex].effects:
+                    self.applyEffect(effect, i)
                 continue
             for effect in moves[i].card.effects:
-                state.applyEffect(effect, i)
-        for i in range(state.numPlayers):
-            if (state.age == 2):
-                state.players[i].hand = oldHands[(i + 1) % len(oldHands)]
+                self.applyEffect(effect, i)
+        for i in range(self.numPlayers):
+            if (self.age == 2):
+                self.players[i].hand = oldHands[(i + 1) % len(oldHands)]
             else:
-                state.players[i].hand = oldHands[i - 1]
-        return state
+                self.players[i].hand = oldHands[i - 1]
 
     def print(self):
         for i in range(self.numPlayers):
@@ -400,6 +412,7 @@ class Player:
         elif move.discard:
             self.gold += 3
         else:
+            # Regular card purchase
             self.gold -= move.payOption.totalCost()
             self.leftNeighbor.gold += move.payOption.payLeft
             self.rightNeighbor.gold += move.payOption.payRight

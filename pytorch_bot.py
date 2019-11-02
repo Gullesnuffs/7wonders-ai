@@ -12,29 +12,34 @@ import math
 import random
 from replay_memory import Transition, ReplayMemory
 
+HIDDEN_STATE_SIZE = 256
+
+
 class MoveScore:
-    def __init__(self, move: Move, score: float, tensor: torch.tensor):
+    def __init__(self, move: Move, score: float, stateTensor: torch.tensor, newHiddenState: torch.tensor):
         self.move = move
         self.score = score
-        self.tensor = tensor
+        self.stateTensor = stateTensor
+        self.newHiddenState = newHiddenState
         self.priority = 0.0
 
 
 class Net(nn.Module):
     def __init__(self, stateSize: int):
         super(Net, self).__init__()
-        self.lstm = nn.LSTMCell((stateSize,), 256)
-        self.lin1 = nn.Linear(256, 128)
+        self.lstm = nn.LSTMCell(stateSize, HIDDEN_STATE_SIZE)
+        self.lin1 = nn.Linear(HIDDEN_STATE_SIZE, 128)
         self.lin2 = nn.Linear(128, 128)
         self.lin3 = nn.Linear(128, 64)
 
-    def forward(self, x: torch.tensor, lstmState1: torch.tensor, lstmState2: torch.tensor):
+    def forward(self, x: torch.tensor, lstmState1: torch.tensor, lstmState2: torch.tensor) -> torch.tensor:
         lstmState1, lstmState2 = self.lstm(x, lstmState1, lstmState2)
         x = lstmState1
         x = F.relu(self.lin1(x))
         x = F.relu(self.lin2(x))
         x = F.relu(self.lin3(x))
         return x
+
 
 
 def onehot(size: int, index: int) -> np.array:
@@ -50,32 +55,53 @@ def concat_smart(arr: List[Union[list, float, int]]) -> torch.tensor:
     return torch.cat(arr)
 
 
+class GameInstance:
+    def __init__(self, state: State):
+        self.hiddenState = torch.zeros(HIDDEN_STATE_SIZE)
+        self.state = state
+
+    def getModelInput(self):
+        return (TorchBot.getStateTensor(self.state), self.hiddenState)
+
+    def performMove(self, move: MoveScore):
+        self.state.performMove(move.move)
+        self.hiddenState = move.newHiddenState
+
+
 class TorchBot:
     def __init__(self, numPlayers: int):
         self.numPlayers = numPlayers
-
         stateSize = TorchBot.getStateTensorDimension(self.numPlayers)
         self.model = Net(stateSize)
         self.gamesPlayed = 0
         self.PRINT = False
         self.testingMode = False
+        self.name = "TorchBot"
 
     @staticmethod
     def getStateTensorDimension(numPlayers: int):
         return 365
 
     def train(self, state: State):
-        replay_memory = ReplayMemory()
+        games = []
 
         batch_size = 128
         optimizer = torch.optim.Adam(self.model.parameters())
         # Standard Q learning
         while True:
-            if len(replay_memory) > 1000:
+            if len(games) > 100:
                 # Train
-                replay_memory.sample(batch_size)
-        pass
+                batch = random.sample(games, batch_size)
 
+            # Generate data
+            batch = [GameInstance(state) for _ in range(batch_size)]
+            while not batch[0].isGameOver():
+                # tensors = [instance.getModelInput() for instance in batch]
+                moves = TorchBot.getMoves(batch)
+                for instance, move in zip(batch, move):
+                    instance.performMove(move)
+
+    @staticmethod
     def getPlayerStateTensor(self, state: State, playerIndex: int) -> torch.tensor:
         GOLD_DIMENSION = 15
 
@@ -104,30 +130,30 @@ class TorchBot:
             player.numWonderStagesBuilt > 3,
         ])
 
-    def getHandTensor(self, state: State):
+    @staticmethod
+    def getHandTensor(state: State):
         tensor = np.zeros((len(ALL_CARDS)))
         for i, card in enumerate(ALL_CARDS):
             tensor[i] = 1 if card in state.players[0].hand else 0
         return tensor
 
-    def getAgeAndPickTensor(self, state: State):
+    @staticmethod
+    def getAgeAndPickTensor(state: State):
         tensor = np.zeros((9))
         tensor[state.age - 1] = 1
         tensor[10 - len(state.players[0].hand)] = 1
         return tensor
 
-    def getStateTensor(self, state: State):
+    @staticmethod
+    def getStateTensor(state: State):
         return torch.cat(
-            [self.getAgeAndPickTensor(state), self.getHandTensor(state)] +
-            [self.getPlayerStateTensor(state, player)
+            [TorchBot.getAgeAndPickTensor(state), TorchBot.getHandTensor(state)] +
+            [TorchBot.getPlayerStateTensor(state, player)
              for player in range(state.numPlayers)]
         )
 
-    class BotInstance:
-        def __init__(self):
-            self.hiddenState = []
-
-    def getMovesForPlayer(self, state: State):
+    @staticmethod
+    def getMovesForPlayer(state: State):
         moves = []
         player = state.players[0]
         for card in player.hand:
@@ -146,36 +172,42 @@ class TorchBot:
                     moves.append(Move(card=card, payOption=payOption))
         return moves
 
-    def getMoves(self, states: List[State]):
+    @staticmethod
+    def getMoves(self, batch: List[GameInstance]):
         allMoves = []
         allMoveScores = []
         allTensors = []
-        for stateInd in range(len(states)):
-            state = states[stateInd]
-            moves = self.getMovesForPlayer(state)
+        allHiddenStates = []
+        for stateInd in range(len(batch)):
+            state = batch[stateInd].state
+            moves = TorchBot.getMovesForPlayer(state)
             moveScores: List[MoveScore] = []
             tensors = []
             for move in moves:
                 state.players[0].performMove(move, removeCardFromHand=False)
-                tensor = self.getStateTensor(state)
+                tensor = TorchBot.getStateTensor(state)
                 state.players[0].undoMove(move)
                 tensors.append(tensor)
             allMoves.append(moves)
             allMoveScores.append(moveScores)
             allTensors.append(tensors)
+            allHiddenStates.append([batch[stateInd].hiddenState for _ in moves])
 
         flatTensors = [
             tensor for tensorList in allTensors for tensor in tensorList]
-        scores = self.model(torch.stack(flatTensors))
+        flatHiddenStates = [tensor for tensorList in allHiddenStates for tensor in tensorList]
+        scores, newFlatHiddenStates = self.model(torch.stack(flatTensors), torch.stack(flatHiddenStates))
         scoreInd = 0
         chosenMoves = []
-        for state, moves, moveScores, tensors in zip(states, allMoves, allMoveScores, allTensors):
+        for instance, moves, moveScores, tensors in zip(batch, allMoves, allMoveScores, allTensors):
+            state = instance.state
             player = state.players[0]
 
             for move, tensor in zip(moves, tensors):
                 score = scores[scoreInd][0]
+                newHiddenState = newFlatHiddenStates[scoreInd]
                 scoreInd += 1
-                moveScores.append(MoveScore(move, score, tensor))
+                moveScores.append(MoveScore(move, score, tensor, newHiddenState))
 
             moveScores.sort(key=lambda x: -x.score)
 

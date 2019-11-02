@@ -3,14 +3,17 @@ from elo import rate_1vs1
 from control import playGames
 from random_bot import RandomBot
 from science_bot import ScienceBot
-from dnn_reference_bot import DNNReferenceBot
+# from dnn_reference_bot import DNNReferenceBot
+from pytorch_bot import TorchBot
 
 randomBot = RandomBot()
 scienceBot = ScienceBot()
 # dnnReferenceBot = dnnReferenceBot(3)
-dnnReferenceBot = DNNReferenceBot(3)
+# dnnReferenceBot = DNNReferenceBot(3)
+torchBot = TorchBot(3)
+
 # random.seed(2)
-bots = [randomBot, scienceBot, dnnReferenceBot]
+bots = [randomBot, scienceBot, torchBot]
 debug = True
 gamesAtATime = 1 if debug else 100
 for bot in bots:
@@ -25,9 +28,9 @@ while True:
     if debug:
         testingMode = True
     if testingMode:
-        bots = [dnnReferenceBot, dnnReferenceBot, dnnReferenceBot]
+        bots = [torchBot, torchBot, torchBot]
     else:
-        bots = [dnnReferenceBot, dnnReferenceBot, dnnReferenceBot]
+        bots = [torchBot, torchBot, torchBot]
     for bot in bots:
         bot.testingMode = testingMode
     playGames(bots, gamesAtATime)
