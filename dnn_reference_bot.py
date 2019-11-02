@@ -15,7 +15,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from card import Card, Move
 from card_database import ALL_CARDS, getCardIndex, ALL_WONDERS
-from state import State
+from control import State
 
 #tfe = contrib.eager
 
@@ -83,7 +83,7 @@ class DNNReferenceBot:
         historicalInputs = keras.Input(shape=(6, getStateTensorDimension(self.numPlayers),), name='historical')
         y = layers.LSTM(256)(historicalInputs)
 
-        inputs = keras.Input(shape=(getMoveTensorDimension(self.numPlayers)), name='state')
+        inputs = keras.Input(shape=([getMoveTensorDimension(self.numPlayers)]), name='state')
         x = layers.Dense(512, activation='relu', name='dense_1', kernel_regularizer=keras.regularizers.l2(l=0.01))(inputs)
         x = layers.Dropout(0.3)(x)
         #lstmOutput, stateH, stateC = layers.LSTM(64, return_state=True, name='lstm')(x)
@@ -327,7 +327,7 @@ class DNNReferenceBot:
             allHistoryTensors.append(myHistoryTensors)
         flatTensors = [tensor for tensorList in allTensors for tensor in tensorList]
         flatHistoryTensors = [tensor for tensorList in allHistoryTensors for tensor in tensorList]
-        scores = self.model([np.stack(flatTensors, axis=0), np.stack(flatHistoryTensors, axis=0).astype('float32')]).numpy()
+        scores = self.model([np.stack(flatTensors, axis=0), np.stack(flatHistoryTensors, axis=0).astype('float32')])
         scoreInd = 0
         chosenMoves = []
         for stateInd in range(len(states)):
