@@ -11,7 +11,9 @@ from control import Player
 import math
 import random
 from trainer_rnn import TrainerRNN
+import build.bin.sevenwonders
 
+build.bin.sevenwonders.load()
 
 HIDDEN_STATE_SIZE = 256
 
@@ -45,17 +47,41 @@ class Net(nn.Module):
         return x, torch.cat([lstmState1, lstmState2], axis=1)
 
 
-def onehot(size: int, index: int) -> np.ndarray:
-    assert 0 <= index < size
-    arr = np.zeros(size)
-    arr[index] = 1
-    return arr
-
-
 def concat_smart(arr: List[Union[list, float, int]]) -> torch.tensor:
     arr = [x if isinstance(x, list) or isinstance(
         x, np.ndarray) else [float(x)] for x in arr]
     return torch.as_tensor(np.concatenate(arr), dtype=torch.float32)
+
+
+class TensorBuilder():
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.reset()
+
+    def reset(self):
+        self.index = 0
+        self.tensor = np.zeros(self.capacity, dtype=np.float32)
+
+    def onehot(self, size: int, index: int):
+        assert index >= 0 and index < size
+        self.tensor[self.index + index] = 1
+        self.index += size
+
+    def append(self, value):
+        self.tensor[self.index] = float(value)
+        self.index += 1
+
+    def append_iter(self, iterator):
+        for v in iterator:
+            self.tensor[self.index] = float(v)
+            self.index += 1
+
+    def view(self, size: int):
+        self.index += size
+        return self.tensor[self.index - size:self.index]
+
+    def value(self):
+        return torch.as_tensor(self.tensor[:self.index])
 
 
 class TorchBot:
@@ -79,19 +105,42 @@ class TorchBot:
         self.trainer.reset()
 
     def onGameFinished(self, states: List[State]) -> None:
+        self.gamesPlayed += len(states)
         # Normally normalized by number of steps... but it's the same for all games so whatever
         final_scores = np.zeros((len(states), 1), dtype=np.float32)
         for i in range(len(states)):
-            final_scores[i] = states[i].getScore(0)
+            scores = [states[i].getScore(j) for j in range(states[i].numPlayers)]
+            actualScore = 0
+            wonGame = True
+            for j in range(1, states[i].numPlayers):
+                scoreDiff = scores[0] - scores[j]
+                if scoreDiff == 0:
+                    value = 0.5
+                else:
+                    if scoreDiff > 0:
+                        scoreDiff += 5
+                    else:
+                        scoreDiff -= 5
+                    value = 0.5 + 0.5 * np.tanh(scoreDiff * 0.05)
+                if scores[j] >= scores[0]:
+                    wonGame = False
+                actualScore += value / (states[i].numPlayers - 1)
+            winValue = 0.4
+            actualScore *= (1 - winValue)
+            if wonGame:
+                actualScore += winValue
+            actualScore = 0.7 * actualScore + 0.3 * (0.5 + 0.5 * np.tanh((scores[0] - 50) * 0.05))
+
+            final_scores[i] = actualScore
         self.backprop(None, torch.as_tensor(final_scores))
         self.trainer.backprop(self.total_loss)
 
     @staticmethod
     def getStateTensorDimension(numPlayers: int):
-        return 368
+        return 369
 
     @staticmethod
-    def getPlayerStateTensor(state: State, playerIndex: int) -> torch.tensor:
+    def getPlayerStateTensor(state: State, playerIndex: int, builder: TensorBuilder) -> None:
         GOLD_DIMENSION = 15
 
         player = state.players[playerIndex]
@@ -102,44 +151,41 @@ class TorchBot:
         rightMilitaryScore = state.players[(
             playerIndex - 1) % len(state.players)].getMilitaryScore()
 
-        return concat_smart([
-            [1 if card.name in player.boughtCardNames else 0 for card in ALL_CARDS],
-            onehot(len(ALL_WONDERS), ALL_WONDERS.index(player.wonder)),
-            onehot(GOLD_DIMENSION, min(GOLD_DIMENSION - 1, player.gold)),
-            (player.gold - 5.0) / 5.0,
-            player.getNumShields() / 5.0,
-            player.getMilitaryScore(),
-            myMilitaryScore > leftMilitaryScore,
-            myMilitaryScore > rightMilitaryScore,
-            myMilitaryScore / 8.0,
-            (state.getScore(playerIndex) - 20.0) / 20.0,
-            player.numWonderStagesBuilt > 0,
-            player.numWonderStagesBuilt > 1,
-            player.numWonderStagesBuilt > 2,
-            player.numWonderStagesBuilt > 3,
-        ])
+        multihot_cards = builder.view(len(ALL_CARDS))
+        for card in player.boughtCards:
+            multihot_cards[card.cardId] = 1
+        builder.onehot(len(ALL_WONDERS), ALL_WONDERS.index(player.wonder))
+        builder.onehot(GOLD_DIMENSION, min(GOLD_DIMENSION - 1, player.gold))
+        builder.append((player.gold - 5.0) / 5.0)
+        builder.append(player.getNumShields() / 5.0)
+        builder.append(player.getMilitaryScore())
+        builder.append(myMilitaryScore > leftMilitaryScore)
+        builder.append(myMilitaryScore > rightMilitaryScore)
+        builder.append(myMilitaryScore / 8.0)
+        builder.append((state.getScore(playerIndex) - 20.0) / 20.0)
+        builder.append(player.numWonderStagesBuilt > 0)
+        builder.append(player.numWonderStagesBuilt > 1)
+        builder.append(player.numWonderStagesBuilt > 2)
+        builder.append(player.numWonderStagesBuilt > 3)
 
     @staticmethod
-    def getHandTensor(state: State):
-        tensor = np.zeros((len(ALL_CARDS)), dtype=np.float32)
-        for i, card in enumerate(ALL_CARDS):
-            tensor[i] = 1 if card in state.players[0].hand else 0
-        return tensor
+    def getHandTensor(state: State, builder: TensorBuilder):
+        for card in ALL_CARDS:
+            builder.append(1 if card in state.players[0].hand else 0)
 
     @staticmethod
-    def getAgeAndPickTensor(state: State):
-        tensor = np.zeros((9), dtype=np.float32)
-        tensor[state.age - 1] = 1
-        tensor[10 - len(state.players[0].hand)] = 1
-        return tensor
+    def getAgeAndPickTensor(state: State, builder: TensorBuilder):
+        builder.onehot(3, state.age - 1)
+        builder.onehot(7, len(state.players[0].hand) - 1)
 
     @staticmethod
     def getStateTensor(state: State):
-        return torch.as_tensor(np.concatenate(
-            [TorchBot.getAgeAndPickTensor(state), TorchBot.getHandTensor(state)] +
-            [TorchBot.getPlayerStateTensor(state, player)
-             for player in range(state.numPlayers)]
-        ))
+        builder = TensorBuilder(TorchBot.getStateTensorDimension(state.numPlayers))
+        TorchBot.getAgeAndPickTensor(state, builder)
+        TorchBot.getHandTensor(state, builder)
+        for player in range(state.numPlayers):
+            TorchBot.getPlayerStateTensor(state, player, builder)
+        return builder.value()
 
     @staticmethod
     def getMovesForPlayer(state: State):

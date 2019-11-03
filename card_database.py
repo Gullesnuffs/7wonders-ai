@@ -737,6 +737,10 @@ ALL_CARDS = [
     WORKSHOP,
 ]
 
+# Important for torch bot
+for i, card in enumerate(ALL_CARDS):
+    card.cardId = i
+
 
 def getCardIndex(card):
     for i in range(len(ALL_CARDS)):

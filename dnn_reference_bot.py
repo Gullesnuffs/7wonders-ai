@@ -42,7 +42,6 @@ PER_CARD_DIMENSION = 17
 GOLD_DIMENSION = 15
 global_step = tf.Variable(0)
 
-
 class DNNReferenceBot:
 
     def __init__(self, numPlayers):
