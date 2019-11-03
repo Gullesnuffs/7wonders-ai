@@ -3,23 +3,23 @@ import random
 import time
 from ortools.graph import pywrapgraph
 from card_database import ALL_WONDERS, getCards, PURPLE_CARDS, MANUFACTURED_RESOURCES, NONMANUFACTURED_RESOURCES
-from card import Color, ProductionEffect, Resource, RESOURCES, ScoreEffect, GoldEffect, Constant, CardCounter, TradingEffect, ScienceEffect, Science, MilitaryEffect, DefeatCounter, PayOption, WonderCounter, Wonder, Card
-from random_bot import RandomBot
-from science_bot import ScienceBot
-from typing import Optional, List, Set
+from card import Color, ProductionEffect, RESOURCES, ScoreEffect, GoldEffect, Constant, CardCounter
+from card import TradingEffect, ScienceEffect, Science, MilitaryEffect, DefeatCounter, PayOption, WonderCounter, Wonder, Card
+from typing import List, Set
+import numpy as np
+import random
 
-PRINT = True
+
+PRINT = False
 PRINT_VERBOSE = False
 
 
 class State:
 
-    def __init__(self, bots):
-        bots = copy.copy(bots)
-        random.shuffle(bots)
-        self.numPlayers = len(bots)
+    def __init__(self, playerNames: List[str]):
+        self.numPlayers = len(playerNames)
         wonders = random.sample(ALL_WONDERS, self.numPlayers)
-        self.players = [Player(wonder, bot) for wonder, bot in zip(wonders, bots)]
+        self.players = [Player(wonder, name) for wonder, name in zip(wonders, playerNames)]
         for i in range(self.numPlayers):
             self.players[i].leftNeighbor = self.players[(i + 1) % self.numPlayers]
             self.players[i].rightNeighbor = self.players[(i - 1) % self.numPlayers]
@@ -350,10 +350,9 @@ class State:
 
 class Player:
 
-    def __init__(self, wonder: Wonder, bot):
+    def __init__(self, wonder: Wonder, name: str):
         self.wonder = wonder
-        self.name = self.wonder.name + ' (' + bot.name + ')'
-        self.bot = bot
+        self.name = self.wonder.name + ' (' + name + ')'
         self.boughtCards: List[Card] = []
         self.boughtCardNames: Set[str] = set()
         self.gold: int = 3
@@ -475,66 +474,70 @@ def playGame(bots):
     playGames(bots, 1)
 
 
-def playGames(bots, numGames):
+def shuffle_bots(bots):
+    bot_indices = [i for i in range(len(bots))]
+    random.shuffle(bot_indices)
+
+    new_bots = [None] * len(bots)
+    for i in range(len(bots)):
+        new_bots[bot_indices[i]] = bots[i]
+    return new_bots, bot_indices
+
+
+def playGames(bots, numGames) -> np.ndarray:
+    '''
+    Returns a list of scores indexed as scores[game, player]
+    '''
+    # original bots[i] will have player index bot_indices[i] in the games
+    bots, bot_indices = shuffle_bots(bots)
+
     startTime = time.time()
-    players = len(bots)
-    for i in range(players):
-        bots[i].PRINT = PRINT
+    for bot in bots:
+        bot.PRINT = PRINT
+
     # random.seed(1)
-    allStates = []
-    for gameInd in range(numGames):
-        allStates.append(State(bots))
+    playerNames = [bot.name for bot in bots]
+    states = [State(playerNames) for _ in range(numGames)]
+
+    for bot in bots:
+        bot.onGameStart(numGames)
+
     for age in range(1, 4):
-        for gameInd in range(numGames):
-            allStates[gameInd].initAge(age)
+        for state in states:
+            state.initAge(age)
+
         for pick in range(1, 7):
             if PRINT:
                 print('Age %d Pick %d' % (age, pick))
-            inputStates = []
-            botInd = []
-            for bot in bots:
-                inputStates.append([])
-            for gameInd in range(numGames):
-                botInd.append([])
-                for i in range(players):
-                    state = allStates[gameInd]
-                    player = state.players[i]
-                    for j in range(len(bots)):
-                        if bots[j] == player.bot and len(inputStates[j]) <= gameInd:
-                            newInputState = state.getStateFromPerspective(i)
-                            inputStates[j].append(newInputState)
-                            botInd[gameInd].append(j)
-                            break
-            chosenMoves = []
-            for j in range(len(bots)):
-                chosenMoves.append(bots[j].getMoves(inputStates[j]))
-            for gameInd in range(numGames):
-                moves = []
-                state = allStates[gameInd]
-                if PRINT:
-                    state.print()
-                for i in range(players):
-                    player = state.players[i]
-                    moves.append(chosenMoves[botInd[gameInd][i]][gameInd])
-                allStates[gameInd] = state.performMoves(moves)
-                if PRINT:
-                    print('\n')
-        for gameInd in range(numGames):
-            allStates[gameInd].resolveWar()
-    for bot in bots:
-        bot.scores = []
+
+            # Get all moves from all players
+            # This is batched per player type for optimal performance
+            moves_by_player = []
+            for playerIndex, bot in enumerate(bots):
+                inputStates = [state.getStateFromPerspective(playerIndex) for state in states]
+                bot.observe(inputStates)
+                moves_by_player.append(bot.getMoves(inputStates))
+
+            # Transpose from moves[player][game] to moves[game][player]
+            moves_by_game = [[moves_by_player[player][game] for player in range(len(bots))] for game in range(numGames)]
+
+            # Perform moves and get new states
+            states = [state.performMoves(moves) for state, moves in zip(states, moves_by_game)]
+
+        for state in states:
+            state.resolveWar()
+
     endTime = time.time()
     print("Games took %.3f seconds" % (endTime - startTime))
     startTime = time.time()
-    for gameInd in range(numGames):
-        state = allStates[gameInd].endGame()
-        if PRINT:
-            state.print()
-        for i in range(players):
-            state.players[i].bot.scores.append(state.getScore(i))
-        for i in range(players):
-            state.players[i].bot.train(state.getStateFromPerspective(i))
+
+    for state in states:
+        state.endGame()
+
+    for playerIndex, bot in enumerate(bots):
+        inputStates = [state.getStateFromPerspective(playerIndex) for state in states]
+        bot.onGameFinished(inputStates)
+
     endTime = time.time()
     print("Updating bots took %.3f seconds" % (endTime - startTime))
-    # for i in range(players):
-    #    print('%s: %d' % (bots[i].name, bots[i].score))
+    return np.array([[state.getScore(playerIndex) for playerIndex in bot_indices] for state in states])

@@ -16,6 +16,7 @@ from tensorflow.keras import layers
 from card import Card, Move
 from card_database import ALL_CARDS, getCardIndex, ALL_WONDERS
 from control import State
+from typing import List
 
 #tfe = contrib.eager
 
@@ -78,6 +79,15 @@ class DNNReferenceBot:
             self.isTrained = True
         else:
             self.fitModel()
+
+    def onGameStart(self, numGames: int) -> None:
+        pass
+
+    def onGameFinished(self, states: List[State]) -> None:
+        pass
+
+    def observe(self, states: List[State]) -> None:
+        pass
 
     def createModel(self):
         historicalInputs = keras.Input(shape=(6, getStateTensorDimension(self.numPlayers),), name='historical')

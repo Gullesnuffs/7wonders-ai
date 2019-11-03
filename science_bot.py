@@ -1,5 +1,7 @@
 import random
 from card import Move, Color
+from typing import List
+from control import State
 
 
 class ScienceBot:
@@ -9,11 +11,21 @@ class ScienceBot:
 
     def getBestPayOption(self, payOptions):
         best = None
+        bestSum = float("inf")
         for payOption in payOptions:
-            if (best is None or payOption.totalCost() < bestSum):
+            if payOption.totalCost() < bestSum:
                 bestSum = payOption.totalCost()
                 best = payOption
         return best
+
+    def onGameStart(self, numGames: int) -> None:
+        pass
+
+    def onGameFinished(self, states: List[State]) -> None:
+        pass
+
+    def observe(self, states: List[State]) -> None:
+        pass
 
     def getMove(self, state):
         player = state.players[0]
