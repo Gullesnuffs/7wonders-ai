@@ -37,26 +37,34 @@ while True:
         bot.testingMode = testingMode
     scores = playGames(bots, gamesAtATime)
     all_scores = np.concatenate([all_scores, scores]) if all_scores is not None else scores
-    factor = min(5, 50.0 / math.pow(games + 1, 0.8))
     if testingMode:
-        for gameInd in range(scores.shape[0]):
-            for i in range(len(bots)):
-                for j in range(i):
-                    if bots[i] == bots[j]:
-                        continue
-                    if scores[gameInd, i] > scores[gameInd, j]:
-                        # print('%s defeats %s' % (bots[i].name, bots[j].name))
-                        (newRatingI, newRatingJ) = rate_1vs1(bots[i].rating, bots[j].rating)
-                    elif scores[gameInd, i] == scores[gameInd, j]:
-                        # print('%s and %s draw' % (bots[i].name, bots[j].name))
-                        (newRatingI, newRatingJ) = rate_1vs1(bots[i].rating, bots[j].rating, drawn=True)
-                    else:
-                        # print('%s defeats %s' % (bots[j].name, bots[i].name))
-                        (newRatingJ, newRatingI) = rate_1vs1(bots[j].rating, bots[i].rating)
-                    bots[i].rating = bots[i].rating * (1 - factor) + newRatingI * factor
-                    bots[j].rating = bots[j].rating * (1 - factor) + newRatingJ * factor
-                    randomBot.rating = 1000
-                    # dnnReferenceBot.rating = 1720
+        for i in range(len(bots)):
+            bots[i].rating = 1000
+        volatility = 20
+        while volatility > 0.01:
+            simpleScore = [0 for bot in bots]
+            for gameInd in range(scores.shape[0]):
+                for i in range(len(bots)):
+                    for j in range(i):
+                        if bots[i] == bots[j]:
+                            continue
+                        if scores[gameInd, i] > scores[gameInd, j]:
+                            (newRatingI, newRatingJ) = rate_1vs1(bots[i].rating, bots[j].rating)
+                            simpleScore[i] += 1
+                        elif scores[gameInd, i] == scores[gameInd, j]:
+                            (newRatingI, newRatingJ) = rate_1vs1(bots[i].rating, bots[j].rating, drawn=True)
+                            simpleScore[i] += 0.5
+                            simpleScore[j] += 0.5
+                        else:
+                            (newRatingJ, newRatingI) = rate_1vs1(bots[j].rating, bots[i].rating)
+                            simpleScore[j] += 1
+                        bots[i].rating = bots[i].rating * (1 - volatility) + newRatingI * volatility
+                        bots[j].rating = bots[j].rating * (1 - volatility) + newRatingJ * volatility
+                        randomBot.rating = 1000
+                        # dnnReferenceBot.rating = 1720
+            volatility /= 2
+        for i in range(len(bots)):
+            print("%s: %.1f" % (bots[i].name, simpleScore[i]))
         for bot in bots:
             print('%s\'s rating: %d' % (bot.name, bot.rating))
     games += gamesAtATime
