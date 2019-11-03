@@ -11,12 +11,11 @@ from control import Player
 import math
 import random
 from trainer_rnn import TrainerRNN
-import build.bin.sevenwonders
-
-build.bin.sevenwonders.load()
+import os
 
 HIDDEN_STATE_SIZE = 256
 ACTION_STATE_SIZE = len(ALL_CARDS) + 2*15 + 3
+CHECKPOINT_PATH = 'pytorchbot/checkpoint.pt'
 
 
 class MoveScore:
@@ -98,6 +97,8 @@ class TorchBot:
         self.numPlayers = numPlayers
         stateSize = TorchBot.getStateTensorDimension(self.numPlayers)
         self.model = Net(stateSize)
+        if os.path.exists(CHECKPOINT_PATH):
+            self.model.load_state_dict(torch.load(CHECKPOINT_PATH))
         self.gamesPlayed = 0
         self.PRINT = False
         self.testingMode = False
@@ -143,6 +144,7 @@ class TorchBot:
             final_scores[i] = actualScore
         self.backprop(None, torch.as_tensor(final_scores))
         self.trainer.backprop(self.total_loss)
+        torch.save(self.model.state_dict(), CHECKPOINT_PATH)
 
     @staticmethod
     def getStateTensorDimension(numPlayers: int):
