@@ -1,5 +1,5 @@
 from dnn_reference_bot import DNNReferenceBot
-from card_database import getCards, PURPLE_CARDS, ALL_WONDERS
+from card_database import getCards, PURPLE_CARDS, ALL_WONDERS, DEFAULT
 from control import State
 from card import PayOption, Move
 
@@ -25,10 +25,11 @@ def getNumber(query):
 
 def getAutocompleteResult(query, considerationList, isWonder = False):
     typeName = 'wonder' if isWonder else 'card'
+    considerationList = sorted(list(set(considerationList)), key = lambda item: item.name)
     while True:
         name = input(query)
         candidates = []
-        for item in set(considerationList):
+        for item in considerationList:
             if item.name.lower().startswith(name.lower()):
                 candidates.append(item)
         if len(candidates) == 0:
@@ -65,8 +66,6 @@ def updateHandState(state, handSize):
     for i in range(state.numPlayers):
         state.players[i].hand = []
     state.players[0].hand = getHand(handSize, state.age, state.numPlayers)
-    for i in range(state.numPlayers):
-        print(state.players[i].hand)
 
 class FakeBot:
     def __init__(self):
@@ -74,17 +73,25 @@ class FakeBot:
         pass
 
     def getPayOption(self, state):
-        payBank = getNumber('How much did %s pay to the bank? ' % (self.wonder.name))
-        payLeft = getNumber('How much did %s pay to %s? ' % (self.wonder.name, state.players[1].wonder.name))
-        payRight = getNumber('How much did %s pay to %s? ' % (self.wonder.name, state.players[-1].wonder.name))
+        payBank = getNumber('How much did %s pay to the bank? ' % (state.players[0].name))
+        payLeft = getNumber('How much did %s pay to %s? ' % (state.players[0].name, state.players[1].name))
+        payRight = getNumber('How much did %s pay to %s? ' % (state.players[0].name, state.players[-1].name))
         return PayOption(payBank = payBank, payLeft = payLeft, payRight = payRight)
 
     def getMove(self, state):
-        playedFaceUp = getBool('Did %s play a card face up? ' % self.wonder.name)
-        if playedFaceUp:
-            card = getCard('Which card did %s play? ' % self.wonder.name, state.age, state.numPlayers)
-            payOption = self.getPayOption(state)
-            return Move(card, payOption = payOption)
+        while True:
+            playedFaceUp = getBool('Did %s play a card face up? ' % state.players[0].name)
+            if playedFaceUp:
+                card = getCard('Which card did %s play? ' % state.players[0].name, state.age, state.numPlayers)
+                payOption = self.getPayOption(state)
+                return Move(card, payOption = payOption)
+            discarded = getBool('Did %s discard a card? ' % state.players[0].name)
+            if discarded:
+                return Move(DEFAULT, discard = True)
+            buildWonder = getBool('Did %s build a wonder stage? ' % state.players[0].name)
+            if buildWonder:
+                payOption = self.getPayOption(state)
+                return Move(DEFAULT, payOption = payOption, buildWonder = True, wonderStageIndex = state.players[0].numWonderStagesBuilt)
 
 
 def playGame():
@@ -95,12 +102,13 @@ def playGame():
     bots = [bot]
     for i in range(players-1):
         bots.append(FakeBot())
-    state = State(bots, doShuffle = False)
-    state.players[0].wonder = getWonder('My wonder: ')
+    wonders = []
+    wonders.append(getWonder('My wonder: '))
     for i in range(1, players):
-        state.players[i].wonder = getWonder('Wonder of player %d seats to the left: ' % i)
+        wonders.append(getWonder('Wonder of player %d seats to the left: ' % i))
+    state = State([wonder.name for wonder in wonders], wonders = wonders)
     for i in range(players):
-        state.players[i].bot.wonder = state.players[i].wonder
+        state.players[i].name = state.players[i].wonder.shortName
     for age in range(1, 4):
         state.initAge(age)
         for pick in range(1, 7):
@@ -111,7 +119,7 @@ def playGame():
             for j in range(players):
                 player = state.players[j]
                 inputState = state.getStateFromPerspective(j)
-                moves.append(player.bot.getMove(inputState))
+                moves.append(bots[j].getMove(inputState))
             state = state.performMoves(moves)
             print('\n')
         state.resolveWar()

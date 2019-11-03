@@ -191,8 +191,9 @@ class WonderStage:
 
 class Wonder:
 
-    def __init__(self, name, effect, stages):
+    def __init__(self, name, shortName, effect, stages):
         self.name = name
+        self.shortName = shortName
         self.effect = effect
         self.stages = stages
 

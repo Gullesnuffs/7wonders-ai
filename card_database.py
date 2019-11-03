@@ -816,6 +816,7 @@ AGE3_3PLAYERS = [
 
 RHODES_A = Wonder(
     name='Rhodes A',
+    shortName = 'Rhodes',
     effect=ProductionEffect([Resource.ORE]),
     stages=[
         WonderStage(
@@ -830,6 +831,7 @@ RHODES_A = Wonder(
     ])
 EPHESUS_A = Wonder(
     name='Ephesus A',
+    shortName = 'Ephesus',
     effect=ProductionEffect([Resource.PAPYRUS]),
     stages=[
         WonderStage(
@@ -844,6 +846,7 @@ EPHESUS_A = Wonder(
     ])
 GIZA_A = Wonder(
     name='Giza A',
+    shortName = 'Giza',
     effect=ProductionEffect([Resource.STONE]),
     stages=[
         WonderStage(

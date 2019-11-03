@@ -291,7 +291,7 @@ class DNNReferenceBot:
         return np.concatenate((stateTensor, tensor))
 
     def getMove(self, state):
-        return self.getMoves([state])
+        return self.getMoves([state])[0]
 
     def getMoves(self, states):
         allMoves = []

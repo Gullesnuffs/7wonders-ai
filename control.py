@@ -16,9 +16,10 @@ PRINT_VERBOSE = False
 
 class State:
 
-    def __init__(self, playerNames: List[str]):
+    def __init__(self, playerNames: List[str], wonders = None):
         self.numPlayers = len(playerNames)
-        wonders = random.sample(ALL_WONDERS, self.numPlayers)
+        if wonders is None:
+            wonders = random.sample(ALL_WONDERS, self.numPlayers)
         self.players = [Player(wonder, name) for wonder, name in zip(wonders, playerNames)]
         for i in range(self.numPlayers):
             self.players[i].leftNeighbor = self.players[(i + 1) % self.numPlayers]
