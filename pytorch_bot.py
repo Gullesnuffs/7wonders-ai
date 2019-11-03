@@ -12,10 +12,42 @@ import math
 import random
 from trainer_rnn import TrainerRNN
 import os
+from datetime import datetime
+import subprocess
 
 HIDDEN_STATE_SIZE = 256
 ACTION_STATE_SIZE = len(ALL_CARDS) + 2*15 + 3
 CHECKPOINT_PATH = 'pytorchbot/checkpoint.pt'
+
+
+class TensorBoardWrapper:
+    def __init__(self, log_dir):
+        self.log_dir = log_dir
+        self.writer = None
+        self.scalars = []
+
+    def add_scalar(self, message, loss, step):
+        if self.writer is not None:
+            self.writer.add_scalar(message, loss, step)
+        else:
+            self.scalars.append((message, loss, step))
+
+    def add_embedding(self, *args, **kwargs):
+        self.writer.add_embedding(*args, **kwargs)
+
+    def init(self):
+        if self.writer is not None:
+            return
+
+        from tensorboardX import SummaryWriter
+        self.writer = SummaryWriter(log_dir=self.log_dir)
+        for s in self.scalars:
+            self.writer.add_scalar(*s)
+        self.scalars = None
+
+    def set_epoch(self, epoch):
+        if epoch >= 2:
+            self.init()
 
 
 class MoveScore:
@@ -92,6 +124,24 @@ class TensorBuilder():
         return torch.as_tensor(self.tensor[:self.index])
 
 
+def save_git(comment):
+    orig_hash = subprocess.check_output(["git", "describe", "--always"]).decode('utf-8').strip()
+
+    if subprocess.call(["git", "commit", "--allow-empty", "-a", "-m", comment]) != 0:
+        print("Git commit failed")
+        exit(1)
+
+    hash = subprocess.check_output(["git", "rev-parse", "--short=6", "HEAD"]).decode('utf-8').strip()
+
+    if subprocess.call(["git", "reset", orig_hash]) != 0:
+        print("Git reset failed")
+        exit(1)
+
+    comment = comment + " " + hash
+    print(comment)
+    return comment
+
+
 class TorchBot:
     def __init__(self, numPlayers: int):
         self.numPlayers = numPlayers
@@ -107,6 +157,9 @@ class TorchBot:
         self.trainer = TrainerRNN(optimizer=torch.optim.Adam(self.model.parameters()), device=self.device)
         self.loss_function = nn.MSELoss(reduction="mean")
         self.last_move_scores: Optional[torch.tensor] = None
+        comment = save_git("test")
+        self.tensorboard = TensorBoardWrapper(log_dir=f"tensorboard/{self.name}/{datetime.now():%Y-%m-%d_%H:%M} {comment}")
+        self.tensorboard.init()
 
     def onGameStart(self, numGames: int) -> None:
         self.hiddenStates = torch.zeros((numGames, 2*HIDDEN_STATE_SIZE), dtype=torch.float32)
@@ -115,8 +168,6 @@ class TorchBot:
         self.trainer.reset()
 
     def onGameFinished(self, states: List[State]) -> None:
-        self.gamesPlayed += len(states)
-        # Normally normalized by number of steps... but it's the same for all games so whatever
         final_scores = np.zeros((len(states), 1), dtype=np.float32)
         for i in range(len(states)):
             scores = [states[i].getScore(j) for j in range(states[i].numPlayers)]
@@ -124,14 +175,9 @@ class TorchBot:
             wonGame = True
             for j in range(1, states[i].numPlayers):
                 scoreDiff = scores[0] - scores[j]
-                if scoreDiff == 0:
-                    value = 0.5
-                else:
-                    if scoreDiff > 0:
-                        scoreDiff += 5
-                    else:
-                        scoreDiff -= 5
-                    value = 0.5 + 0.5 * np.tanh(scoreDiff * 0.05)
+                if scoreDiff != 0:
+                    scoreDiff += 5 if scoreDiff > 0 else -5
+                value = 0.5 + 0.5 * np.tanh(scoreDiff * 0.05)
                 if scores[j] >= scores[0]:
                     wonGame = False
                 actualScore += value / (states[i].numPlayers - 1)
@@ -139,12 +185,21 @@ class TorchBot:
             actualScore *= (1 - winValue)
             if wonGame:
                 actualScore += winValue
-            actualScore = 0.7 * actualScore + 0.3 * (0.5 + 0.5 * np.tanh((scores[0] - 50) * 0.05))
 
             final_scores[i] = actualScore
+
+            self.tensorboard.add_scalar("final real score", scores[0], self.gamesPlayed)
+            self.tensorboard.add_scalar("final score", actualScore, self.gamesPlayed)
+            self.gamesPlayed += 1
+
         self.backprop(None, torch.as_tensor(final_scores))
+
+        # Normally normalized by number of steps
+        self.total_loss = self.total_loss / (7*3)
+        self.tensorboard.add_scalar("training loss", self.total_loss, self.gamesPlayed)
         self.trainer.backprop(self.total_loss)
         torch.save(self.model.state_dict(), CHECKPOINT_PATH)
+        self.tensorboard.writer.flush()
 
     @staticmethod
     def getStateTensorDimension(numPlayers: int):
