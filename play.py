@@ -14,7 +14,7 @@ scienceBot = ScienceBot()
 torchBot = TorchBot(3)
 
 # random.seed(2)
-bots = [randomBot, scienceBot, torchBot]
+bots = [torchBot, randomBot, scienceBot]
 debug = False
 gamesAtATime = 1 if debug else 100
 for bot in bots:
@@ -30,9 +30,9 @@ while True:
     if debug:
         testingMode = True
     if testingMode:
-        bots = [torchBot, randomBot, randomBot]
+        bots = [torchBot, randomBot, scienceBot]
     else:
-        bots = [torchBot, randomBot, randomBot]
+        bots = [torchBot, torchBot, torchBot]
     for bot in bots:
         bot.testingMode = testingMode
     scores = playGames(bots, gamesAtATime)

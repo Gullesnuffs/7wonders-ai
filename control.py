@@ -496,6 +496,16 @@ def playGames(bots, numGames) -> np.ndarray:
     # original bots[i] will have player index bot_indices[i] in the games
     bots, bot_indices = shuffle_bots(bots)
 
+    # All groups consist of only a single type of bot.
+    # Every index is a player index
+    player_groups = []
+    group_bot = []
+    for i, bot in enumerate(bots):
+        # Is this a new bot?
+        if bot not in bots[:i]:
+            player_groups.append([j for j in range(len(bots)) if bot == bots[j]])
+            group_bot.append(bot)
+
     startTime = time.time()
     for bot in bots:
         bot.PRINT = PRINT
@@ -504,8 +514,8 @@ def playGames(bots, numGames) -> np.ndarray:
     playerNames = [bot.name for bot in bots]
     states = [State(playerNames) for _ in range(numGames)]
 
-    for bot in bots:
-        bot.onGameStart(numGames)
+    for bot, group in zip(group_bot, player_groups):
+        bot.onGameStart(numGames * len(group))
 
     for age in range(1, 4):
         for state in states:
@@ -517,11 +527,15 @@ def playGames(bots, numGames) -> np.ndarray:
 
             # Get all moves from all players
             # This is batched per player type for optimal performance
-            moves_by_player = []
-            for playerIndex, bot in enumerate(bots):
-                inputStates = [state.getStateFromPerspective(playerIndex) for state in states]
+            moves_by_player = [[] for _ in range(len(bots))]
+            for bot, group in zip(group_bot, player_groups):
+                inputStates = [state.getStateFromPerspective(playerIndex) for playerIndex in group for state in states]
                 bot.observe(inputStates)
-                moves_by_player.append(bot.getMoves(inputStates))
+                moves = bot.getMoves(inputStates)
+                for playerIndex in group:
+                    moves_by_player[playerIndex] = moves[:numGames]
+                    moves = moves[numGames:]
+                assert(len(moves) == 0)
 
             # Transpose from moves[player][game] to moves[game][player]
             moves_by_game = [[moves_by_player[player][game] for player in range(len(bots))] for game in range(numGames)]
@@ -539,8 +553,8 @@ def playGames(bots, numGames) -> np.ndarray:
     for state in states:
         state.endGame()
 
-    for playerIndex, bot in enumerate(bots):
-        inputStates = [state.getStateFromPerspective(playerIndex) for state in states]
+    for bot, group in zip(group_bot, player_groups):
+        inputStates = [state.getStateFromPerspective(playerIndex) for playerIndex in group for state in states]
         bot.onGameFinished(inputStates)
 
     endTime = time.time()
