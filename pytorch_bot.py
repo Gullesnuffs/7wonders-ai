@@ -16,6 +16,7 @@ import build.bin.sevenwonders
 build.bin.sevenwonders.load()
 
 HIDDEN_STATE_SIZE = 256
+ACTION_STATE_SIZE = len(ALL_CARDS) + 2*15 + 3
 
 
 class MoveScore:
@@ -31,10 +32,12 @@ class Net(nn.Module):
         self.lstm = nn.LSTMCell(stateSize, HIDDEN_STATE_SIZE)
         self.lin1 = nn.Linear(HIDDEN_STATE_SIZE, 128)
         self.lin2 = nn.Linear(128, 128)
-        self.lin3 = nn.Linear(128, 64)
-        self.lin4 = nn.Linear(64, 1)
 
-    def forward(self, x: torch.tensor, lstmState: torch.tensor) -> torch.tensor:
+        self.alin1 = nn.Linear(128 + ACTION_STATE_SIZE, 64)
+        self.alin2 = nn.Linear(64, 4)
+        self.alin3 = nn.Linear(4, 1)
+
+    def forward(self, x: torch.tensor, lstmState: torch.tensor, perActionStates: torch.tensor, actionToStateMapping: torch.tensor) -> torch.tensor:
         # Unpack the lstm states
         lstmState1 = lstmState[:, 0:HIDDEN_STATE_SIZE]
         lstmState2 = lstmState[:, HIDDEN_STATE_SIZE:]
@@ -42,9 +45,15 @@ class Net(nn.Module):
         x = lstmState1
         x = F.relu(self.lin1(x))
         x = F.relu(self.lin2(x))
-        x = F.relu(self.lin3(x))
-        x = self.lin4(x)
-        return x, torch.cat([lstmState1, lstmState2], axis=1)
+
+        perActionCompressedStates = torch.index_select(x, dim=0, index=actionToStateMapping)
+        perActionStates = torch.cat([perActionStates, perActionCompressedStates], dim=1)
+
+        perActionStates = F.relu(self.alin1(perActionStates))
+        perActionStates = F.relu(self.alin2(perActionStates))
+        perActionStates = self.alin3(perActionStates)
+
+        return perActionStates, torch.cat([lstmState1, lstmState2], axis=1)
 
 
 def concat_smart(arr: List[Union[list, float, int]]) -> torch.tensor:
@@ -208,8 +217,9 @@ class TorchBot:
         return moves
 
     def observe(self, states: List[State]):
-        tensors = torch.as_tensor(np.stack([TorchBot.getStateTensor(state) for state in states]))
-        _, self.hiddenStates = self.model(tensors, self.hiddenStates)
+        # tensors = torch.as_tensor(np.stack([TorchBot.getStateTensor(state) for state in states]))
+        # _, self.hiddenStates = self.model(tensors, self.hiddenStates)
+        pass
 
     def backprop(self, chosen_move_scores: Optional[torch.tensor], expected_scores_for_best_move: torch.tensor):
         '''
@@ -222,26 +232,43 @@ class TorchBot:
 
     def getMoves(self, states: List[State]):
         allMoves = []
-        allTensors = []
-        allHiddenStates = []
         allIndexRanges = []
         for stateInd, state in enumerate(states):
             moves = TorchBot.getMovesForPlayer(state)
+            allMoves.append(moves)
 
-            allIndexRanges.append(range(len(allTensors), len(allTensors) + len(moves)))
+        numTotalActions = sum(len(m) for m in allMoves)
+        perActionStates = np.zeros((numTotalActions, ACTION_STATE_SIZE), dtype=np.float32)
+        actionToStateMapping = np.zeros(numTotalActions, dtype=np.long)
+
+        index = 0
+        for stateIndex, moves in enumerate(allMoves):
+            allIndexRanges.append(range(index, index + len(moves)))
             for move in moves:
-                state.players[0].performMove(move, removeCardFromHand=False)
-                tensor = TorchBot.getStateTensor(state)
-                state.players[0].undoMove(move)
-                allTensors.append(tensor)
-                allMoves.append(move)
-                allHiddenStates.append(self.hiddenStates[stateInd])
+                perActionStates[index, move.card.cardId] = 1
+                offset = len(ALL_CARDS)
+                perActionStates[index, offset + min(14, move.payOption.payLeft)] = 1
+                offset += 15
+                perActionStates[index, offset + min(14, move.payOption.payRight)] = 1
+                offset += 15
+                if move.buildWonder:
+                    perActionStates[index, offset + 0] = 1
+                elif move.discard:
+                    perActionStates[index, offset + 1] = 1
+                else:
+                    perActionStates[index, offset + 2] = 1
+                offset += 3
+                actionToStateMapping[index] = stateIndex
+                index += 1
 
-        scores, _ = self.model(torch.as_tensor(np.stack((allTensors))), torch.stack(allHiddenStates))
+        stateTensors = torch.as_tensor(np.stack([TorchBot.getStateTensor(state) for state in states]))
+        allMoves = [move for moves in allMoves for move in moves]
+        scores, self.hiddenStates = self.model(stateTensors, self.hiddenStates, torch.as_tensor(perActionStates), torch.as_tensor(actionToStateMapping))
+
         chosenMoves = []
         chosen_move_scores = []
         best_move_scores = []
-        for state, indexRange in zip(states, allIndexRanges):
+        for indexRange in allIndexRanges:
             moveScores = [MoveScore(allMoves[i], scores[i]) for i in indexRange]
             moveScores.sort(key=lambda x: -x.priority)
 
