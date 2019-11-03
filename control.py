@@ -460,6 +460,10 @@ class Player:
             for effect in card.effects:
                 if isinstance(effect, MilitaryEffect):
                     shields += effect.shields
+        for i in range(self.numWonderStagesBuilt):
+            for effect in self.wonder.stages[i].effects:
+                if isinstance(effect, MilitaryEffect):
+                    shields += effect.shields
         return shields
 
     def getMilitaryScore(self):
