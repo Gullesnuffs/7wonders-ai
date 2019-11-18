@@ -64,9 +64,9 @@ class Net(nn.Module):
         self.lin1 = nn.Linear(HIDDEN_STATE_SIZE, 128)
         self.lin2 = nn.Linear(128, 128)
 
-        self.alin1 = nn.Linear(128 + ACTION_STATE_SIZE, 64)
-        self.alin2 = nn.Linear(64, 4)
-        self.alin3 = nn.Linear(4, 1)
+        self.alin1 = nn.Linear(ACTION_STATE_SIZE, 32)
+        self.alin2 = nn.Linear(160, 64)
+        self.alin3 = nn.Linear(64, 1)
 
     def forward(self, x: torch.tensor, lstmState: torch.tensor, perActionStates: torch.tensor, actionToStateMapping: torch.tensor) -> torch.tensor:
         # Unpack the lstm states
@@ -78,9 +78,10 @@ class Net(nn.Module):
         x = F.relu(self.lin2(x))
 
         perActionCompressedStates = torch.index_select(x, dim=0, index=actionToStateMapping)
+
+        perActionStates = self.alin1(perActionStates)
         perActionStates = torch.cat([perActionStates, perActionCompressedStates], dim=1)
 
-        perActionStates = F.relu(self.alin1(perActionStates))
         perActionStates = F.relu(self.alin2(perActionStates))
         perActionStates = self.alin3(perActionStates)
 
