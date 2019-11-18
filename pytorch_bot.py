@@ -201,6 +201,9 @@ class TorchBot:
         torch.save(self.model.state_dict(), CHECKPOINT_PATH)
         self.tensorboard.writer.flush()
 
+    def onRatingsAssigned(self) -> None:
+        self.tensorboard.add_scalar("rating", self.rating, self.gamesPlayed)
+
     @staticmethod
     def getStateTensorDimension(numPlayers: int):
         return 369

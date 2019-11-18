@@ -67,4 +67,5 @@ while True:
             print("%s: %.1f" % (bots[i].name, simpleScore[i]))
         for bot in bots:
             print('%s\'s rating: %d' % (bot.name, bot.rating))
+            bot.onRatingsAssigned()
     games += gamesAtATime

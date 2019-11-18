@@ -24,6 +24,9 @@ class ScienceBot:
     def onGameFinished(self, states: List[State]) -> None:
         pass
 
+    def onRatingsAssigned(self) -> None:
+        pass
+
     def observe(self, states: List[State]) -> None:
         pass
 
