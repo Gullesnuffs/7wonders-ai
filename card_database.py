@@ -3,14 +3,42 @@ from card import Card, Color, Constant, Cost, ScoreEffect, ProductionEffect, Res
 
 
 def getCards(age, players):
+    cards = []
     if (age == 1):
-        cards = AGE1_3PLAYERS
+        if players >= 3:
+            cards += AGE1_3PLAYERS
+        if players >= 4:
+            cards += AGE1_4PLAYERS
+        if players >= 5:
+            cards += AGE1_5PLAYERS
     if (age == 2):
-        cards = AGE2_3PLAYERS
+        if players >= 3:
+            cards += AGE2_3PLAYERS
+        if players >= 4:
+            cards += AGE2_4PLAYERS
+        if players >= 5:
+            cards += AGE2_5PLAYERS
     if (age == 3):
-        cards = AGE3_3PLAYERS
+        if players >= 3:
+            cards += AGE3_3PLAYERS
+        if players >= 4:
+            cards += AGE3_4PLAYERS
+        if players >= 5:
+            cards += AGE3_5PLAYERS
     return copy.copy(cards)
 
+def getAllCardsWithMultiplicities(players):
+    allCardsWithMultiplicities = []
+    cards = getCards(1, players) + getCards(2, players) + getCards(3, players) + PURPLE_CARDS
+    for card in ALL_CARDS:
+        allCardsWithMultiplicities.append((card, cards.count(card)))
+    return allCardsWithMultiplicities
+
+def getNumCardsWithMultiplicities(players):
+    numCards = 0
+    for (card, numCardInstances) in getAllCardsWithMultiplicities(players):
+        numCards += numCardInstances
+    return numCards
 
 MANUFACTURED_RESOURCES = [Resource.GLASS, Resource.CLOTH, Resource.PAPYRUS]
 NONMANUFACTURED_RESOURCES = [Resource.CLAY, Resource.STONE, Resource.WOOD, Resource.ORE]
@@ -673,16 +701,16 @@ ALL_CARDS = [
     BRICKYARD,
     BUILDERS_GUILD,
     CARAVANSERY,
-    # CHAMBER_OF_COMMERCE,
-    # CIRCUS,
+    CHAMBER_OF_COMMERCE,
+    CIRCUS,
     CLAY_PIT,
     CLAY_POOL,
     COURTHOUSE,
     CRAFTSMENS_GUILD,
     DISPENSARY,
     EAST_TRADING_POST,
-    # EXCAVATION,
-    # FOREST_CAVE,
+    EXCAVATION,
+    FOREST_CAVE,
     FORTIFICATIONS,
     FOUNDRY,
     FORUM,
@@ -698,7 +726,7 @@ ALL_CARDS = [
     LUMBER_YARD,
     MAGISTRATES_GUILD,
     MARKETPLACE,
-    # MINE,
+    MINE,
     OBSERVATORY,
     ORE_VEIN,
     PALACE,
@@ -727,8 +755,8 @@ ALL_CARDS = [
     TIMBER_YARD,
     TOWN_HALL,
     TRADERS_GUILD,
-    # TRAINING_GROUND,
-    # TREE_FARM,
+    TRAINING_GROUND,
+    TREE_FARM,
     UNIVERSITY,
     VINEYARD,
     WALLS,
@@ -774,6 +802,24 @@ AGE1_3PLAYERS = [
     BARRACKS,
     GUARD_TOWER,
 ]
+AGE1_4PLAYERS = [
+    LUMBER_YARD,
+    ORE_VEIN,
+    EXCAVATION,
+    PAWNSHOP,
+    TAVERN,
+    GUARD_TOWER,
+    SCRIPTORIUM,
+]
+AGE1_5PLAYERS = [
+    STONE_PIT,
+    CLAY_POOL,
+    FOREST_CAVE,
+    ALTAR,
+    TAVERN,
+    BARRACKS,
+    APOTHECARY,
+]
 
 AGE2_3PLAYERS = [
     SAWMILL,
@@ -798,6 +844,24 @@ AGE2_3PLAYERS = [
     STABLES,
     ARCHERY_RANGE,
 ]
+AGE2_4PLAYERS = [
+    SAWMILL,
+    QUARRY,
+    BRICKYARD,
+    FOUNDRY,
+    BAZAR,
+    TRAINING_GROUND,
+    DISPENSARY,
+]
+AGE2_5PLAYERS = [
+    LOOM,
+    GLASSWORKS,
+    PRESS,
+    CARAVANSERY,
+    STABLES,
+    LABORATORY,
+    COURTHOUSE,
+]
 
 AGE3_3PLAYERS = [
     PANTHEON,
@@ -816,6 +880,22 @@ AGE3_3PLAYERS = [
     ARSENAL,
     SIEGE_WORKSHOP,
     ARENA,
+]
+AGE3_4PLAYERS = [
+    GARDENS,
+    HAVEN,
+    CHAMBER_OF_COMMERCE,
+    CIRCUS,
+    ARSENAL,
+    UNIVERSITY,
+]
+AGE3_5PLAYERS = [
+    TOWN_HALL,
+    CIRCUS,
+    ARENA,
+    SIEGE_WORKSHOP,
+    SENATE,
+    STUDY,
 ]
 
 RHODES_A = Wonder(
@@ -863,5 +943,35 @@ GIZA_A = Wonder(
             cost=Cost(resources=[Resource.STONE, Resource.STONE, Resource.STONE, Resource.STONE]),
             effects=[ScoreEffect(Constant(value=7))]),
     ])
+ALEXANDRIA_A = Wonder(
+    name='Alexandria A',
+    shortName = 'Alexandria',
+    effect=ProductionEffect([Resource.GLASS]),
+    stages=[
+        WonderStage(
+            cost=Cost(resources=[Resource.STONE, Resource.STONE]),
+            effects=[ScoreEffect(Constant(value=3))]),
+        WonderStage(
+            cost=Cost(resources=[Resource.ORE, Resource.ORE]),
+            effects=[ProductionEffect(NONMANUFACTURED_RESOURCES)]),
+        WonderStage(
+            cost=Cost(resources=[Resource.GLASS, Resource.GLASS]),
+            effects=[ScoreEffect(Constant(value=7))]),
+    ])
+BABYLON_A = Wonder(
+    name='Babylon A',
+    shortName = 'Babylon',
+    effect=ProductionEffect([Resource.CLAY]),
+    stages=[
+        WonderStage(
+            cost=Cost(resources=[Resource.CLAY, Resource.CLAY]),
+            effects=[ScoreEffect(Constant(value=3))]),
+        WonderStage(
+            cost=Cost(resources=[Resource.WOOD, Resource.WOOD, Resource.WOOD]),
+            effects=[ScienceEffect([Science.COMPASS, Science.COG, Science.TABLET])]),
+        WonderStage(
+            cost=Cost(resources=[Resource.CLAY, Resource.CLAY, Resource.CLAY, Resource.CLAY]),
+            effects=[ScoreEffect(Constant(value=7))]),
+    ])
 
-ALL_WONDERS = [RHODES_A, EPHESUS_A, GIZA_A]
+ALL_WONDERS = [RHODES_A, EPHESUS_A, GIZA_A, ALEXANDRIA_A, BABYLON_A]

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 from card import Card, Move
-from card_database import ALL_CARDS, getCardIndex, ALL_WONDERS
+from card_database import ALL_CARDS, getCardIndex, ALL_WONDERS, getAllCardsWithMultiplicities, getNumCardsWithMultiplicities
 from control import State
 from typing import List, Union, Optional
 from control import Player
@@ -15,8 +15,8 @@ import os
 from datetime import datetime
 import subprocess
 
-HIDDEN_STATE_SIZE = 256
-ACTION_STATE_SIZE = len(ALL_CARDS) + 2*15 + 3
+HIDDEN_STATE_SIZE = 512
+ACTION_STATE_SIZE = len(ALL_CARDS) + 2*14 + 3
 CHECKPOINT_PATH = 'pytorchbot/checkpoint.pt'
 
 
@@ -61,19 +61,26 @@ class Net(nn.Module):
     def __init__(self, stateSize: int):
         super(Net, self).__init__()
         self.lstm = nn.LSTMCell(stateSize, HIDDEN_STATE_SIZE)
-        self.lin1 = nn.Linear(HIDDEN_STATE_SIZE, 128)
-        self.lin2 = nn.Linear(128, 128)
 
-        self.alin1 = nn.Linear(ACTION_STATE_SIZE, 32)
-        self.alin2 = nn.Linear(160, 64)
-        self.alin3 = nn.Linear(64, 1)
+        self.plin1 = nn.Linear(stateSize, 256)
+
+        self.lin1 = nn.Linear(HIDDEN_STATE_SIZE + 256, 512)
+        self.lin2 = nn.Linear(512, 256)
+
+        self.alin1 = nn.Linear(ACTION_STATE_SIZE, 64)
+        self.alin2 = nn.Linear(320, 256)
+        self.alin3 = nn.Linear(256, 64)
+        self.alin4 = nn.Linear(64, 1)
 
     def forward(self, x: torch.tensor, lstmState: torch.tensor, perActionStates: torch.tensor, actionToStateMapping: torch.tensor) -> torch.tensor:
         # Unpack the lstm states
         lstmState1 = lstmState[:, 0:HIDDEN_STATE_SIZE]
         lstmState2 = lstmState[:, HIDDEN_STATE_SIZE:]
         lstmState1, lstmState2 = self.lstm(x, (lstmState1, lstmState2))
-        x = lstmState1
+
+        y = F.relu(self.plin1(x))
+
+        x = torch.cat([y, lstmState1], dim=1)
         x = F.relu(self.lin1(x))
         x = F.relu(self.lin2(x))
 
@@ -83,7 +90,8 @@ class Net(nn.Module):
         perActionStates = torch.cat([perActionStates, perActionCompressedStates], dim=1)
 
         perActionStates = F.relu(self.alin2(perActionStates))
-        perActionStates = self.alin3(perActionStates)
+        perActionStates = F.relu(self.alin3(perActionStates))
+        perActionStates = self.alin4(perActionStates)
 
         return perActionStates, torch.cat([lstmState1, lstmState2], axis=1)
 
@@ -146,7 +154,9 @@ def save_git(comment):
 class TorchBot:
     def __init__(self, numPlayers: int):
         self.numPlayers = numPlayers
-        stateSize = TorchBot.getStateTensorDimension(self.numPlayers)
+        self.allCardsWithMultiplicities = getAllCardsWithMultiplicities(numPlayers)
+        self.numCardsWithMultiplicities = getNumCardsWithMultiplicities(numPlayers)
+        stateSize = self.getStateTensorDimension(self.numPlayers)
         self.model = Net(stateSize)
         if os.path.exists(CHECKPOINT_PATH):
             self.model.load_state_dict(torch.load(CHECKPOINT_PATH))
@@ -155,7 +165,7 @@ class TorchBot:
         self.testingMode = False
         self.name = "TorchBot"
         self.device = torch.device("cpu")
-        self.trainer = TrainerRNN(optimizer=torch.optim.Adam(self.model.parameters()), device=self.device)
+        self.trainer = TrainerRNN(optimizer=torch.optim.Adam(self.model.parameters(), lr=1e-3, weight_decay=0.000001), device=self.device)
         self.loss_function = nn.MSELoss(reduction="mean")
         self.last_move_scores: Optional[torch.tensor] = None
         comment = save_git("test")
@@ -193,21 +203,26 @@ class TorchBot:
             self.tensorboard.add_scalar("final score", actualScore, self.gamesPlayed)
             self.gamesPlayed += 1
 
-        self.backprop(None, torch.as_tensor(final_scores))
+        if not self.testingMode:
+            self.backprop(None, torch.as_tensor(final_scores))
 
         # Normally normalized by number of steps
         self.total_loss = self.total_loss / (7*3)
-        self.tensorboard.add_scalar("training loss", self.total_loss, self.gamesPlayed)
-        self.trainer.backprop(self.total_loss)
-        torch.save(self.model.state_dict(), CHECKPOINT_PATH)
+        if not self.testingMode:
+            self.tensorboard.add_scalar("training loss", self.total_loss, self.gamesPlayed)
+            self.trainer.backprop(self.total_loss)
+            torch.save(self.model.state_dict(), CHECKPOINT_PATH)
         self.tensorboard.writer.flush()
 
     def onRatingsAssigned(self) -> None:
         self.tensorboard.add_scalar("rating", self.rating, self.gamesPlayed)
 
     @staticmethod
-    def getStateTensorDimension(numPlayers: int):
-        return 369
+    def getPlayerStateTensorDimension():
+        return len(ALL_CARDS) + len(ALL_WONDERS) + 26
+
+    def getStateTensorDimension(self, numPlayers: int):
+        return numPlayers*TorchBot.getPlayerStateTensorDimension() + self.numCardsWithMultiplicities + 10
 
     @staticmethod
     def getPlayerStateTensor(state: State, playerIndex: int, builder: TensorBuilder) -> None:
@@ -238,21 +253,21 @@ class TorchBot:
         builder.append(player.numWonderStagesBuilt > 2)
         builder.append(player.numWonderStagesBuilt > 3)
 
-    @staticmethod
-    def getHandTensor(state: State, builder: TensorBuilder):
-        for card in ALL_CARDS:
-            builder.append(1 if card in state.players[0].hand else 0)
+    def getHandTensor(self, state: State, builder: TensorBuilder):
+        for (card, numCardInstances) in self.allCardsWithMultiplicities:
+            numInHand = state.players[0].hand.count(card)
+            for i in range(numCardInstances):
+                builder.append(1 if numInHand > i else 0)
 
     @staticmethod
     def getAgeAndPickTensor(state: State, builder: TensorBuilder):
         builder.onehot(3, state.age - 1)
         builder.onehot(7, len(state.players[0].hand) - 1)
 
-    @staticmethod
-    def getStateTensor(state: State):
-        builder = TensorBuilder(TorchBot.getStateTensorDimension(state.numPlayers))
+    def getStateTensor(self, state: State):
+        builder = TensorBuilder(self.getStateTensorDimension(state.numPlayers))
         TorchBot.getAgeAndPickTensor(state, builder)
-        TorchBot.getHandTensor(state, builder)
+        self.getHandTensor(state, builder)
         for player in range(state.numPlayers):
             TorchBot.getPlayerStateTensor(state, player, builder)
         return builder.value()
@@ -308,10 +323,14 @@ class TorchBot:
             for move in moves:
                 perActionStates[index, move.card.cardId] = 1
                 offset = len(ALL_CARDS)
-                perActionStates[index, offset + min(14, move.payOption.payLeft)] = 1
-                offset += 15
-                perActionStates[index, offset + min(14, move.payOption.payRight)] = 1
-                offset += 15
+                for i in range(14):
+                    if move.payOption.payLeft > i:
+                        perActionStates[index, offset] = 1
+                    offset += 1
+                for i in range(14):
+                    if move.payOption.payRight > i:
+                        perActionStates[index, offset] = 1
+                    offset += 1
                 if move.buildWonder:
                     perActionStates[index, offset + 0] = 1
                 elif move.discard:
@@ -322,7 +341,7 @@ class TorchBot:
                 actionToStateMapping[index] = stateIndex
                 index += 1
 
-        stateTensors = torch.as_tensor(np.stack([TorchBot.getStateTensor(state) for state in states]))
+        stateTensors = torch.as_tensor(np.stack([self.getStateTensor(state) for state in states]))
         allMoves = [move for moves in allMoves for move in moves]
         scores, self.hiddenStates = self.model(stateTensors, self.hiddenStates, torch.as_tensor(perActionStates), torch.as_tensor(actionToStateMapping))
 
@@ -370,5 +389,6 @@ class TorchBot:
             chosen_move_scores.append(chosenMove.score)
             chosenMoves.append(chosenMove.move)
 
-        self.backprop(torch.stack(chosen_move_scores), torch.stack(best_move_scores))
+        if not self.testingMode:
+            self.backprop(torch.stack(chosen_move_scores), torch.stack(best_move_scores))
         return chosenMoves

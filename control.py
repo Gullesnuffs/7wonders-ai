@@ -201,6 +201,9 @@ class State:
                 if i != 0 and card.color != Color.BROWN and card.color != Color.GREY:
                     continue
                 effects += card.effects
+            if i == 0:
+                for j in range(p.numWonderStagesBuilt):
+                    effects += p.wonder.stages[j].effects
             for effect in effects:
                 if isinstance(effect, ProductionEffect):
                     # effect.print()
@@ -524,6 +527,9 @@ def playGames(bots, numGames) -> np.ndarray:
         for pick in range(1, 7):
             if PRINT:
                 print('Age %d Pick %d' % (age, pick))
+                for state in states:
+                    state.print()
+                    print('\n')
 
             # Get all moves from all players
             # This is batched per player type for optimal performance

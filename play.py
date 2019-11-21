@@ -5,13 +5,16 @@ from random_bot import RandomBot
 from science_bot import ScienceBot
 # from dnn_reference_bot import DNNReferenceBot
 from pytorch_bot import TorchBot
+from pytorch_reference_bot import TorchReferenceBot
 import numpy as np
 
 randomBot = RandomBot()
 scienceBot = ScienceBot()
+numPlayers = 4
 # dnnReferenceBot = DNNReferenceBot(3)
 # dnnReferenceBot = DNNReferenceBot(3)
-torchBot = TorchBot(3)
+torchBot = TorchBot(numPlayers)
+torchReferenceBot = TorchReferenceBot(numPlayers)
 
 # random.seed(2)
 bots = [torchBot, randomBot, scienceBot]
@@ -30,9 +33,9 @@ while True:
     if debug:
         testingMode = True
     if testingMode:
-        bots = [torchBot, randomBot, scienceBot]
+        bots = [torchBot, torchReferenceBot, randomBot, scienceBot]
     else:
-        bots = [torchBot, torchBot, torchBot]
+        bots = [torchBot, torchBot, torchBot, torchBot]
     for bot in bots:
         bot.testingMode = testingMode
     scores = playGames(bots, gamesAtATime)
@@ -41,7 +44,7 @@ while True:
         for i in range(len(bots)):
             bots[i].rating = 1000
         volatility = 20
-        while volatility > 0.01:
+        while volatility > 0.001:
             simpleScore = [0 for bot in bots]
             for gameInd in range(scores.shape[0]):
                 for i in range(len(bots)):
@@ -61,8 +64,9 @@ while True:
                         bots[i].rating = bots[i].rating * (1 - volatility) + newRatingI * volatility
                         bots[j].rating = bots[j].rating * (1 - volatility) + newRatingJ * volatility
                         randomBot.rating = 1000
+                        # torchReferenceBot.rating = 1650
                         # dnnReferenceBot.rating = 1720
-            volatility /= 2
+            volatility /= 1.5
         for i in range(len(bots)):
             print("%s: %.1f" % (bots[i].name, simpleScore[i]))
         for bot in bots:
