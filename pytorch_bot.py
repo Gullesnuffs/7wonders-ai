@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-from card import Card, Move
+from card import Card, Move, Color
 from card_database import ALL_CARDS, getCardIndex, ALL_WONDERS, getAllCardsWithMultiplicities, getNumCardsWithMultiplicities
 from control import State
 from typing import List, Union, Optional
@@ -17,7 +17,6 @@ import subprocess
 
 HIDDEN_STATE_SIZE = 512
 ACTION_STATE_SIZE = len(ALL_CARDS) + 2*14 + 3
-CHECKPOINT_PATH = 'pytorchbot/checkpoint.pt'
 
 
 class TensorBoardWrapper:
@@ -86,7 +85,7 @@ class Net(nn.Module):
 
         perActionCompressedStates = torch.index_select(x, dim=0, index=actionToStateMapping)
 
-        perActionStates = self.alin1(perActionStates)
+        perActionStates = F.relu(self.alin1(perActionStates))
         perActionStates = torch.cat([perActionStates, perActionCompressedStates], dim=1)
 
         perActionStates = F.relu(self.alin2(perActionStates))
@@ -151,19 +150,36 @@ def save_git(comment):
     return comment
 
 
+class CardBonuses:
+    def __init__(self):
+        self.card_bonus = {}
+        for card in ALL_CARDS:
+            self.card_bonus[card] = 0.0
+
+    def set_color_bonus(self, color: Color, bonus: float):
+        for card in ALL_CARDS:
+            if card.color == color:
+                self.card_bonus[card] = bonus
+
+    def get_bonus(self, card):
+        return self.card_bonus[card]
+
+
 class TorchBot:
-    def __init__(self, numPlayers: int):
+    def __init__(self, numPlayers: int, checkpoint_path: str, card_bonuses: CardBonuses, name: str):
         self.numPlayers = numPlayers
         self.allCardsWithMultiplicities = getAllCardsWithMultiplicities(numPlayers)
         self.numCardsWithMultiplicities = getNumCardsWithMultiplicities(numPlayers)
         stateSize = self.getStateTensorDimension(self.numPlayers)
         self.model = Net(stateSize)
-        if os.path.exists(CHECKPOINT_PATH):
-            self.model.load_state_dict(torch.load(CHECKPOINT_PATH))
+        self.card_bonuses = card_bonuses
+        self.checkpoint_path = checkpoint_path
+        if os.path.exists(self.checkpoint_path):
+            self.model.load_state_dict(torch.load(self.checkpoint_path))
         self.gamesPlayed = 0
         self.PRINT = False
         self.testingMode = False
-        self.name = "TorchBot"
+        self.name = name
         self.device = torch.device("cpu")
         self.trainer = TrainerRNN(optimizer=torch.optim.Adam(self.model.parameters(), lr=1e-3, weight_decay=0.000001), device=self.device)
         self.loss_function = nn.MSELoss(reduction="mean")
@@ -196,6 +212,8 @@ class TorchBot:
             actualScore *= (1 - winValue)
             if wonGame:
                 actualScore += winValue
+            for card in states[i].players[0].boughtCards:
+                actualScore += self.card_bonuses.get_bonus(card)
 
             final_scores[i] = actualScore
 
@@ -211,7 +229,7 @@ class TorchBot:
         if not self.testingMode:
             self.tensorboard.add_scalar("training loss", self.total_loss, self.gamesPlayed)
             self.trainer.backprop(self.total_loss)
-            torch.save(self.model.state_dict(), CHECKPOINT_PATH)
+            torch.save(self.model.state_dict(), self.checkpoint_path)
         self.tensorboard.writer.flush()
 
     def onRatingsAssigned(self) -> None:
@@ -306,6 +324,9 @@ class TorchBot:
             self.total_loss += self.loss_function(self.last_move_scores, expected_scores_for_best_move)
         self.last_move_scores = chosen_move_scores
 
+    def getMove(self, state: State):
+        return self.getMoves([state])[0]
+
     def getMoves(self, states: List[State]):
         allMoves = []
         allIndexRanges = []
@@ -377,7 +398,7 @@ class TorchBot:
             adjust_move_priorities(moveScores)
 
             if self.PRINT:
-                print('DNN bot\'s scores:')
+                print('%s\'s scores:' % self.name)
                 for moveScore in moveScores:
                     print('%s: %.3f (probability = %.3f)' % (
                         moveScore.move.toString(), float(moveScore.score.detach()), moveScore.priority))

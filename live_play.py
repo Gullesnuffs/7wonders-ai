@@ -1,7 +1,8 @@
 from dnn_reference_bot import DNNReferenceBot
+from pytorch_bot import TorchBot, CardBonuses
 from card_database import getCards, PURPLE_CARDS, ALL_WONDERS, DEFAULT
 from control import State
-from card import PayOption, Move
+from card import PayOption, Move, Color
 
 PRINT = True
 
@@ -72,33 +73,61 @@ class FakeBot:
         self.name = 'Fake bot'
         pass
 
-    def getPayOption(self, state):
+    def getPayOption(self, state, card):
+        options = state.getCardPayOptions(0, card)
+        if len(options) == 0:
+            print("There is no way to purchase this card")
+            return None
+        if len(options) == 1:
+            opt = list(options)[0]
+            print(f"Assuming {opt.payBank} to the bank, {opt.payLeft} to the left and {opt.payRight} to the right")
+            return opt
+        
         payBank = getNumber('How much did %s pay to the bank? ' % (state.players[0].name))
         payLeft = getNumber('How much did %s pay to %s? ' % (state.players[0].name, state.players[1].name))
         payRight = getNumber('How much did %s pay to %s? ' % (state.players[0].name, state.players[-1].name))
-        return PayOption(payBank = payBank, payLeft = payLeft, payRight = payRight)
+        opt = PayOption(payBank = payBank, payLeft = payLeft, payRight = payRight)
+        f = [o for o in options if o.payBank == opt.payBank and o.payLeft == opt.payLeft and o.payRight == opt.payRight]
+        if len(f) != 1:
+            print("You cannot pay with that particular combination")
+            return None
+        return opt
+
+    def getPayOptionSimple(self, state):
+        payBank = getNumber('How much did %s pay to the bank? ' % (state.players[0].name))
+        payLeft = getNumber('How much did %s pay to %s? ' % (state.players[0].name, state.players[1].name))
+        payRight = getNumber('How much did %s pay to %s? ' % (state.players[0].name, state.players[-1].name))
+        opt = PayOption(payBank = payBank, payLeft = payLeft, payRight = payRight)
+        return opt
 
     def getMove(self, state):
         while True:
             playedFaceUp = getBool('Did %s play a card face up? ' % state.players[0].name)
             if playedFaceUp:
                 card = getCard('Which card did %s play? ' % state.players[0].name, state.age, state.numPlayers)
-                payOption = self.getPayOption(state)
+                payOption = self.getPayOption(state, card)
+                if payOption is None:
+                    continue
                 return Move(card, payOption = payOption)
             discarded = getBool('Did %s discard a card? ' % state.players[0].name)
             if discarded:
                 return Move(DEFAULT, discard = True)
             buildWonder = getBool('Did %s build a wonder stage? ' % state.players[0].name)
             if buildWonder:
-                payOption = self.getPayOption(state)
+                payOption = self.getPayOptionSimple(state)
                 return Move(DEFAULT, payOption = payOption, buildWonder = True, wonderStageIndex = state.players[0].numWonderStagesBuilt)
 
 
 def playGame():
     players = getNumber('Number of players: ')
-    bot = DNNReferenceBot(players)
+    scienceCardBonuses = CardBonuses()
+    scienceCardBonuses.set_color_bonus(Color.GREEN, 0.03)
+    scienceTorchBot = TorchBot(players, 'pytorchbot_backup/scienceTorchBot.pt', scienceCardBonuses, 'ScienceTorchBot')
+    torchBot = TorchBot(players, 'pytorchbot_backup/torchbot.pt', CardBonuses(), 'TorchBot')
+    bot = torchBot
     bot.testingMode = True
     bot.PRINT = PRINT
+    bot.onGameStart(1)
     bots = [bot]
     for i in range(players-1):
         bots.append(FakeBot())
