@@ -14,6 +14,7 @@ from trainer_rnn import TrainerRNN
 import os
 from datetime import datetime
 import subprocess
+from nash import Bonus
 
 HIDDEN_STATE_SIZE = 512
 ACTION_STATE_SIZE = len(ALL_CARDS) + 2*14 + 3
@@ -193,6 +194,9 @@ class TorchBot:
         self.total_loss = torch.zeros(1, requires_grad=False, device=self.device)
         self.last_move_scores = None
         self.trainer.reset()
+
+    def getBonus(self):
+        return Bonus()
 
     def onGameFinished(self, states: List[State]) -> None:
         final_scores = np.zeros((len(states), 1), dtype=np.float32)

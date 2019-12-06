@@ -96,6 +96,19 @@ class State:
             bestScore = max(bestScore, self.getScienceScore(effects, ind + 1, compasses, tablets, cogs + 1))
         return bestScore
 
+    def getScienceEffects(self, playerInd):
+        player = self.players[playerInd]
+        scienceEffects = []
+        for card in player.boughtCards:
+            for effect in card.effects:
+                if isinstance(effect, ScienceEffect):
+                    scienceEffects.append(effect)
+        for i in range(player.numWonderStagesBuilt):
+            for effect in player.wonder.stages[i].effects:
+                if isinstance(effect, ScienceEffect):
+                    scienceEffects.append(effect)
+        return scienceEffects
+
     def getScore(self, playerInd):
         player = self.players[playerInd]
         score = player.gold // 3
@@ -518,6 +531,12 @@ def playGames(bots, numGames) -> np.ndarray:
     states = [State(playerNames) for _ in range(numGames)]
 
     for bot, group in zip(group_bot, player_groups):
+        for state in states:
+            for playerIndex in group:
+                bonus = bot.getBonus()
+                state.players[playerIndex].bonus = bonus
+                state.players[playerIndex].scienceBonus = bonus.scienceBonus
+                state.players[playerIndex].militaryBonus = bonus.militaryBonus
         bot.onGameStart(numGames * len(group))
 
     for age in range(1, 4):

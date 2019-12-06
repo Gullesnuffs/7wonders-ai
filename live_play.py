@@ -1,5 +1,6 @@
 from dnn_reference_bot import DNNReferenceBot
 from pytorch_bot import TorchBot, CardBonuses
+from pytorch_bot2 import ParameterizedTorchBot
 from card_database import getCards, PURPLE_CARDS, ALL_WONDERS, DEFAULT
 from control import State
 from card import PayOption, Move, Color
@@ -120,10 +121,7 @@ class FakeBot:
 
 def playGame():
     players = getNumber('Number of players: ')
-    scienceCardBonuses = CardBonuses()
-    scienceCardBonuses.set_color_bonus(Color.GREEN, 0.03)
-    scienceTorchBot = TorchBot(players, 'pytorchbot_backup/scienceTorchBot.pt', scienceCardBonuses, 'ScienceTorchBot')
-    torchBot = TorchBot(players, 'pytorchbot_backup/torchbot.pt', CardBonuses(), 'TorchBot')
+    torchBot = ParameterizedTorchBot(players, 'pytorchbot/parameterizedtorchbot.pt', 'ParameterizedTorchBot')
     bot = torchBot
     bot.testingMode = True
     bot.PRINT = PRINT
@@ -138,6 +136,8 @@ def playGame():
     state = State([wonder.name for wonder in wonders], wonders = wonders)
     for i in range(players):
         state.players[i].name = state.players[i].wonder.shortName
+    state.players[0].scienceBonus = 0.0
+    state.players[0].militaryBonus = 0.1
     for age in range(1, 4):
         state.initAge(age)
         for pick in range(1, 7):

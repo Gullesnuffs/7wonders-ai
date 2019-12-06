@@ -7,6 +7,7 @@ from random_bot import RandomBot
 from science_bot import ScienceBot
 # from dnn_reference_bot import DNNReferenceBot
 from pytorch_bot import TorchBot, CardBonuses
+from pytorch_bot2 import ParameterizedTorchBot
 from pytorch_reference_bot import TorchReferenceBot
 import numpy as np
 
@@ -15,7 +16,7 @@ scienceBot = ScienceBot()
 numPlayers = 5
 # dnnReferenceBot = DNNReferenceBot(3)
 # dnnReferenceBot = DNNReferenceBot(3)
-torchBot = TorchBot(numPlayers, 'pytorchbot/torchbot.pt', CardBonuses(), 'TorchBot')
+torchBot = ParameterizedTorchBot(numPlayers, 'pytorchbot/parameterizedtorchbot.pt', 'ParameterizedTorchBot')
 scienceCardBonuses = CardBonuses()
 scienceCardBonuses.set_color_bonus(Color.GREEN, 0.003)
 scienceTorchBot = TorchBot(numPlayers, 'pytorchbot/scienceTorchBot.pt', scienceCardBonuses, 'ScienceTorchBot')
@@ -34,6 +35,7 @@ gamesAtATime = 1 if debug else 100
 games = 0
 all_scores = None
 while True:
+    torchBot.nash.printState()
     print('Game %d' % (games + 1))
     if ((games // gamesAtATime) % 10 == 0):
         testingMode = True
@@ -44,9 +46,9 @@ while True:
     if testingMode:
         bots = [torchBot, scienceTorchBot, randomBot, militaryTorchBot, civilianTorchBot]
     else:
-        bots = []
-        for i in range(numPlayers):
-            bots.append(random.choice(torchBots))
+        bots = [torchBot, torchBot, torchBot, torchBot, torchBot]
+        #for i in range(numPlayers):
+        #    bots.append(random.choice(torchBots))
     for bot in bots:
         bot.testingMode = testingMode
     scores = playGames(bots, gamesAtATime)

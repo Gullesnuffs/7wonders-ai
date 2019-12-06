@@ -2,6 +2,7 @@ import random
 from card import Move
 from typing import List
 from control import State
+from nash import Bonus
 
 
 class RandomBot:
@@ -20,6 +21,9 @@ class RandomBot:
 
     def onGameStart(self, numGames: int) -> None:
         pass
+
+    def getBonus(self):
+        return Bonus()
 
     def onGameFinished(self, states: List[State]) -> None:
         pass
