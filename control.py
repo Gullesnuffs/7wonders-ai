@@ -4,7 +4,7 @@ import time
 from ortools.graph import pywrapgraph
 from card_database import ALL_WONDERS, getCards, PURPLE_CARDS, MANUFACTURED_RESOURCES, NONMANUFACTURED_RESOURCES
 from card import Color, ProductionEffect, RESOURCES, ScoreEffect, GoldEffect, Constant, CardCounter
-from card import TradingEffect, ScienceEffect, Science, MilitaryEffect, DefeatCounter, PayOption, WonderCounter, Wonder, Card
+from card import TradingEffect, ScienceEffect, Science, MilitaryEffect, DefeatCounter, PayOption, WonderCounter, Wonder, Card, FreeCardEffect
 from typing import List, Set
 import numpy as np
 import random
@@ -141,6 +141,9 @@ class State:
             self.players[player].gold += value
         elif isinstance(effect, TradingEffect):
             self.players[player].tradingEffects.append(effect)
+        elif isinstance(effect, FreeCardEffect):
+            for age in range(3):
+                self.players[player].forFreeEffectsInAge[age] += 1
 
     # This method is kept for compatibility
     # but it does weird things. The players in this state will be modified
@@ -159,7 +162,7 @@ class State:
     def performMovesInPlace(self, moves):
         oldHands = []
         for i in range(self.numPlayers):
-            self.players[i].performMove(moves[i])
+            self.players[i].performMove(moves[i], currentAge = self.age)
             oldHands.append(self.players[i].hand)
         for i in range(self.numPlayers):
             if moves[i].discard:
@@ -189,19 +192,19 @@ class State:
 
     def getCardPayOptions(self, player, card):
         if card.chainFromNames.isdisjoint(self.players[player].boughtCardNames):
-            return self.getPayOptionsForCost(player, card.cost)
+            return self.getPayOptionsForCost(player, card.cost, allowBuyForFree = True)
         else:
             return {PayOption(isChained=True)}
 
-    def getPayOptionsForCost(self, player, cost):
+    def getPayOptionsForCost(self, player, cost, allowBuyForFree):
         payOptions = set()
-        for payOption in self.getPayOptions(player, cost.resources):
+        for payOption in self.getPayOptions(player, cost.resources, allowBuyForFree):
             payOption.payBank += cost.gold
             if payOption.payBank + payOption.payLeft + payOption.payRight <= self.players[player].gold:
                 payOptions.add(payOption)
         return payOptions
 
-    def getPayOptions(self, player, resources):
+    def getPayOptions(self, player, resources, allowBuyForFree):
         need = dict()
         for resource in RESOURCES:
             need[resource] = 0
@@ -224,6 +227,12 @@ class State:
                     production[i].append(effect.produces)
 
         payOptions = self.getPayOptionsSplit(player, need, production)
+        anyFreeOption = False
+        for payOption in payOptions:
+            if payOption.totalCost() == 0:
+                anyFreeOption = True
+        if self.players[player].hasFreeCardEffect(self.age) and (not anyFreeOption) and allowBuyForFree:
+            payOptions.add(PayOption(useForFreeEffect=True))
         if False:
             reducedPayOptions = self.getReducedPayOptions(player, need, production)
             # for option in reducedPayOptions:
@@ -375,6 +384,7 @@ class Player:
         self.boughtCardNames: Set[str] = set()
         self.gold: int = 3
         self.tradingEffects: List[TradingEffect] = []
+        self.forFreeEffectsInAge: List[ind] = [0, 0, 0]
         self.militaryVictories: List[int] = []
         self.militaryDefeats: List[int] = []
         self.tensors = []
@@ -404,6 +414,7 @@ class Player:
         return player
 
     def undoMove(self, move):
+        raise AssertionError('Undoing moves is not supported')
         if move.buildWonder:
             self.gold += move.payOption.totalCost()
             self.leftNeighbor.gold -= move.payOption.payLeft
@@ -418,13 +429,21 @@ class Player:
             self.boughtCards.pop()
             self.boughtCardNames.remove(move.card.name)
 
-    def performMove(self, move, removeCardFromHand=True):
+    def hasFreeCardEffect(self, age):
+        return self.forFreeEffectsInAge[age-1] > 0
+
+    def useFreeCardEffect(self, age):
+        self.forFreeEffectsInAge[age-1] -= 1
+
+    def performMove(self, move, currentAge, removeCardFromHand=True):
         if PRINT and removeCardFromHand:
             self.printMove(move)
         if move.buildWonder:
             self.gold -= move.payOption.totalCost()
             self.leftNeighbor.gold += move.payOption.payLeft
             self.rightNeighbor.gold += move.payOption.payRight
+            if move.payOption.useForFreeEffect:
+                self.useFreeCardEffect(currentAge)
             self.numWonderStagesBuilt += 1
         elif move.discard:
             self.gold += 3
@@ -433,6 +452,8 @@ class Player:
             self.gold -= move.payOption.totalCost()
             self.leftNeighbor.gold += move.payOption.payLeft
             self.rightNeighbor.gold += move.payOption.payRight
+            if move.payOption.useForFreeEffect:
+                self.useFreeCardEffect(currentAge)
             self.boughtCards.append(move.card)
             self.boughtCardNames.add(move.card.name)
         if removeCardFromHand:

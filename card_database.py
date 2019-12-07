@@ -1,5 +1,5 @@
 import copy
-from card import Card, Color, Constant, Cost, ScoreEffect, ProductionEffect, Resource, Wonder, GoldEffect, CardCounter, TradingEffect, ScienceEffect, Science, MilitaryEffect, DefeatCounter, WonderStage, WonderCounter
+from card import Card, Color, Constant, Cost, ScoreEffect, ProductionEffect, Resource, Wonder, GoldEffect, CardCounter, TradingEffect, ScienceEffect, Science, MilitaryEffect, DefeatCounter, WonderStage, WonderCounter, FreeCardEffect
 
 
 def getCards(age, players):
@@ -973,5 +973,20 @@ BABYLON_A = Wonder(
             cost=Cost(resources=[Resource.CLAY, Resource.CLAY, Resource.CLAY, Resource.CLAY]),
             effects=[ScoreEffect(Constant(value=7))]),
     ])
+OLYMPIA_A = Wonder(
+    name='Olympia A',
+    shortName = 'Olympia',
+    effect=ProductionEffect([Resource.WOOD]),
+    stages=[
+        WonderStage(
+            cost=Cost(resources=[Resource.WOOD, Resource.WOOD]),
+            effects=[ScoreEffect(Constant(value=3))]),
+        WonderStage(
+            cost=Cost(resources=[Resource.STONE, Resource.STONE]),
+            effects=[FreeCardEffect()]),
+        WonderStage(
+            cost=Cost(resources=[Resource.ORE, Resource.ORE]),
+            effects=[ScoreEffect(Constant(value=7))]),
+    ])
 
-ALL_WONDERS = [RHODES_A, EPHESUS_A, GIZA_A, ALEXANDRIA_A, BABYLON_A]
+ALL_WONDERS = [RHODES_A, EPHESUS_A, GIZA_A, ALEXANDRIA_A, BABYLON_A, OLYMPIA_A]

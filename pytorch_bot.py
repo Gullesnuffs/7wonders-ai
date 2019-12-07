@@ -17,7 +17,7 @@ import subprocess
 from nash import Nash, Bonus
 
 HIDDEN_STATE_SIZE = 512
-ACTION_STATE_SIZE = len(ALL_CARDS) + 2*14 + 3
+ACTION_STATE_SIZE = len(ALL_CARDS) + 2*14 + 4
 
 
 class TensorBoardWrapper:
@@ -307,7 +307,7 @@ class TorchBot:
             moves.append(Move(card=card, discard=True))
             if player.numWonderStagesBuilt < len(player.wonder.stages):
                 payOptions = state.getPayOptionsForCost(
-                    0, player.wonder.stages[player.numWonderStagesBuilt].cost)
+                    0, player.wonder.stages[player.numWonderStagesBuilt].cost, allowBuyForFree = False)
                 for payOption in payOptions:
                     if (payOption.totalCost() <= player.gold):
                         moves.append(Move(
@@ -363,6 +363,9 @@ class TorchBot:
                     if move.payOption.payRight > i:
                         perActionStates[index, offset] = 1
                     offset += 1
+                if move.payOption.useForFreeEffect:
+                    perActionStates[index, offset] = 1
+                offset += 1
                 if move.buildWonder:
                     perActionStates[index, offset + 0] = 1
                 elif move.discard:

@@ -157,6 +157,10 @@ class TradingEffect:
         self.leftNeighbor = leftNeighbor
         self.rightNeighbor = rightNeighbor
 
+class FreeCardEffect:
+
+    def __init__(self):
+        pass
 
 cardCount = 0
 
@@ -203,28 +207,34 @@ class Wonder:
 
 class PayOption:
 
-    def __init__(self, payBank=0, payLeft=0, payRight=0, isChained=False):
+    def __init__(self, payBank=0, payLeft=0, payRight=0, isChained=False, useForFreeEffect=False):
         self.payBank = payBank
         self.payLeft = payLeft
         self.payRight = payRight
         self.isChained = isChained
+        self.useForFreeEffect = useForFreeEffect
 
     def totalCost(self):
         return self.payBank + self.payLeft + self.payRight
 
     def __eq__(self, other):
-        return self.payBank == other.payBank and self.payLeft == other.payLeft and self.payRight == other.payRight
+        return self.payBank == other.payBank and self.payLeft == other.payLeft and self.payRight == other.payRight and self.isChained == other.isChained and self.useForFreeEffect == other.useForFreeEffect
 
     def __hash__(self):
-        return self.payBank * 10000 + self.payLeft * 100 + self.payRight
+        return self.payBank * 10000 + self.payLeft * 100 + self.payRight + (20000 if self.isChained else 0) + (40000 if self.useForFreeEffect else 0)
 
     def print(self):
-        print('(%d %d %d)' % (self.payBank, self.payLeft, self.payRight))
+        if self.useForFreeEffect:
+            print('(for free)')
+        else:
+            print('(%d %d %d)' % (self.payBank, self.payLeft, self.payRight))
 
     def __add__(self, o):
         return PayOption(self.payBank + o.payBank, self.payLeft + o.payLeft, self.payRight + o.payRight)
 
     def toString(self):
+        if self.useForFreeEffect:
+            return 'for free'
         payingLeftString = (str('%d to the left' % self.payLeft) if self.payLeft > 0 else '')
         payingRightString = (str('%d to the right' % self.payRight) if self.payRight > 0 else '')
         if self.payLeft > 0 and self.payRight > 0:

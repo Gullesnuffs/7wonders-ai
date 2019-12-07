@@ -16,7 +16,6 @@ numPlayers = 5
 # dnnReferenceBot = DNNReferenceBot(3)
 # dnnReferenceBot = DNNReferenceBot(3)
 torchBot = TorchBot(numPlayers, 'pytorchbot/torchbot.pt', 'TorchBot')
-torchReferenceBot = TorchReferenceBot(numPlayers)
 
 # random.seed(2)
 debug = False
