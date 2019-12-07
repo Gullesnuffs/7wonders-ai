@@ -6,8 +6,7 @@ from control import playGames
 from random_bot import RandomBot
 from science_bot import ScienceBot
 # from dnn_reference_bot import DNNReferenceBot
-from pytorch_bot import TorchBot, CardBonuses
-from pytorch_bot2 import ParameterizedTorchBot
+from pytorch_bot import TorchBot
 from pytorch_reference_bot import TorchReferenceBot
 import numpy as np
 
@@ -16,17 +15,7 @@ scienceBot = ScienceBot()
 numPlayers = 5
 # dnnReferenceBot = DNNReferenceBot(3)
 # dnnReferenceBot = DNNReferenceBot(3)
-torchBot = ParameterizedTorchBot(numPlayers, 'pytorchbot/parameterizedtorchbot.pt', 'ParameterizedTorchBot')
-scienceCardBonuses = CardBonuses()
-scienceCardBonuses.set_color_bonus(Color.GREEN, 0.003)
-scienceTorchBot = TorchBot(numPlayers, 'pytorchbot/scienceTorchBot.pt', scienceCardBonuses, 'ScienceTorchBot')
-militaryCardBonuses = CardBonuses()
-militaryCardBonuses.set_color_bonus(Color.RED, 0.003)
-militaryTorchBot = TorchBot(numPlayers, 'pytorchbot/militaryTorchBot.pt', militaryCardBonuses, 'MilitaryTorchBot')
-civilianCardBonuses = CardBonuses()
-civilianCardBonuses.set_color_bonus(Color.BLUE, 0.003)
-civilianTorchBot = TorchBot(numPlayers, 'pytorchbot/civilianTorchBot.pt', civilianCardBonuses, 'CivilianTorchBot')
-torchBots = [torchBot, scienceTorchBot, militaryTorchBot, civilianTorchBot]
+torchBot = TorchBot(numPlayers, 'pytorchbot/torchbot.pt', 'TorchBot')
 torchReferenceBot = TorchReferenceBot(numPlayers)
 
 # random.seed(2)
@@ -44,16 +33,14 @@ while True:
     if debug:
         testingMode = True
     if testingMode:
-        bots = [torchBot, scienceTorchBot, randomBot, militaryTorchBot, civilianTorchBot]
+        bots = [torchBot, torchBot, torchBot, torchBot, randomBot]
     else:
         bots = [torchBot, torchBot, torchBot, torchBot, torchBot]
-        #for i in range(numPlayers):
-        #    bots.append(random.choice(torchBots))
     for bot in bots:
         bot.testingMode = testingMode
     scores = playGames(bots, gamesAtATime)
     all_scores = np.concatenate([all_scores, scores]) if all_scores is not None else scores
-    if testingMode:
+    if testingMode or True:
         for i in range(len(bots)):
             bots[i].rating = 1000
         volatility = 20
@@ -84,5 +71,6 @@ while True:
             print("%s: %.1f" % (bots[i].name, simpleScore[i]))
         for bot in bots:
             print('%s\'s rating: %d' % (bot.name, bot.rating))
-            bot.onRatingsAssigned()
+            if testingMode:
+                bot.onRatingsAssigned()
     games += gamesAtATime

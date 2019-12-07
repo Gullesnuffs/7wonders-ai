@@ -121,8 +121,12 @@ class FakeBot:
 
 def playGame():
     players = getNumber('Number of players: ')
-    torchBot = ParameterizedTorchBot(players, 'pytorchbot/parameterizedtorchbot.pt', 'ParameterizedTorchBot')
+    scienceCardBonuses = CardBonuses()
+    scienceCardBonuses.set_color_bonus(Color.GREEN, 0.003)
+    scienceTorchBot = TorchBot(players, 'pytorchbot/scienceTorchBot.pt', scienceCardBonuses, 'ScienceTorchBot')
+    torchBot = ParameterizedTorchBot(players, 'pytorchbot/parameterizedtorchbot2.pt', 'ParameterizedTorchBot', writeToTensorboard=False)
     bot = torchBot
+    #bot = scienceTorchBot
     bot.testingMode = True
     bot.PRINT = PRINT
     bot.onGameStart(1)
@@ -136,8 +140,8 @@ def playGame():
     state = State([wonder.name for wonder in wonders], wonders = wonders)
     for i in range(players):
         state.players[i].name = state.players[i].wonder.shortName
-    state.players[0].scienceBonus = 0.0
-    state.players[0].militaryBonus = 0.1
+    state.players[0].scienceBonus = 0.00
+    state.players[0].militaryBonus = 0.00
     for age in range(1, 4):
         state.initAge(age)
         for pick in range(1, 7):

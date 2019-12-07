@@ -197,7 +197,8 @@ class State:
         payOptions = set()
         for payOption in self.getPayOptions(player, cost.resources):
             payOption.payBank += cost.gold
-            payOptions.add(payOption)
+            if payOption.payBank + payOption.payLeft + payOption.payRight <= self.players[player].gold:
+                payOptions.add(payOption)
         return payOptions
 
     def getPayOptions(self, player, resources):
@@ -497,7 +498,7 @@ def playGame(bots):
 
 def shuffle_bots(bots):
     bot_indices = [i for i in range(len(bots))]
-    random.shuffle(bot_indices)
+    #random.shuffle(bot_indices)
 
     new_bots = [None] * len(bots)
     for i in range(len(bots)):
