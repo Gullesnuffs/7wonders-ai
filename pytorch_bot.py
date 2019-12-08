@@ -244,7 +244,7 @@ class TorchBot:
 
     @staticmethod
     def getPlayerStateTensorDimension():
-        return len(ALL_CARDS) + len(ALL_WONDERS) + 26
+        return len(ALL_CARDS) + len(ALL_WONDERS) + 29
 
     def getStateTensorDimension(self, numPlayers: int):
         return numPlayers*TorchBot.getPlayerStateTensorDimension() + self.numCardsWithMultiplicities + 12
@@ -277,6 +277,9 @@ class TorchBot:
         builder.append(player.numWonderStagesBuilt > 1)
         builder.append(player.numWonderStagesBuilt > 2)
         builder.append(player.numWonderStagesBuilt > 3)
+        builder.append(player.forFreeEffectsInAge[0])
+        builder.append(player.forFreeEffectsInAge[1])
+        builder.append(player.forFreeEffectsInAge[2])
 
     def getHandTensor(self, state: State, builder: TensorBuilder):
         for (card, numCardInstances) in self.allCardsWithMultiplicities:

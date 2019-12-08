@@ -478,7 +478,8 @@ class Player:
             payingString = (str('%s and%s' % (payingLeftString, payingRightString)) if move.payOption.payLeft >
                             0 and move.payOption.payRight > 0 else str('%s%s' % (payingLeftString, payingRightString)))
             chainingString = ' using chaining' if move.payOption.isChained else ''
-            print('%s bought %s%s%s' % (self.name, move.card.name, payingString, chainingString))
+            forFreeString = ' for free' if move.payOption.useForFreeEffect else ''
+            print('%s bought %s%s%s%s' % (self.name, move.card.name, payingString, chainingString, forFreeString))
 
     def removeCardFromHand(self, card):
         for i in range(len(self.hand)):
@@ -599,6 +600,11 @@ def playGames(bots, numGames) -> np.ndarray:
 
     for state in states:
         state.endGame()
+        if PRINT:
+            print('End of game')
+            for state in states:
+                state.print()
+                print('\n')
 
     for bot, group in zip(group_bot, player_groups):
         inputStates = [state.getStateFromPerspective(playerIndex) for playerIndex in group for state in states]

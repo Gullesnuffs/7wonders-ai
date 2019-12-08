@@ -21,7 +21,7 @@ class Bonus:
 class Nash:
 
     def __init__(self):
-        self.bonuses = [Bonus(), Bonus(scienceBonus = 0.001), Bonus(scienceBonus = 0.005), Bonus(militaryBonus = 0.005)]
+        self.bonuses = [Bonus()]
         self.n = 1
         self.nextNewBonus = 1000
 
