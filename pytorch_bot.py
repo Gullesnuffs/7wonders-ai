@@ -338,10 +338,13 @@ class TorchBot:
         else:
             self.all_move_scores.append(chosen_move_scores)
 
+    def getMoveScores(self, states: List[State]):
+        return self.getMoves(states, onlyReturnScores = True)
+
     def getMove(self, state: State):
         return self.getMoves([state])[0]
 
-    def getMoves(self, states: List[State]):
+    def getMoves(self, states: List[State], onlyReturnScores = False):
         allMoves = []
         allIndexRanges = []
         for stateInd, state in enumerate(states):
@@ -382,6 +385,13 @@ class TorchBot:
         stateTensors = torch.as_tensor(np.stack([self.getStateTensor(state) for state in states]))
         allMoves = [move for moves in allMoves for move in moves]
         scores, self.hiddenStates = self.model(stateTensors, self.hiddenStates, torch.as_tensor(perActionStates), torch.as_tensor(actionToStateMapping))
+        if onlyReturnScores:
+            allMoveScores = []
+            for indexRange in allIndexRanges:
+                moveScores = [MoveScore(allMoves[i], scores[i]) for i in indexRange]
+                moveScores.sort(key=lambda x: -x.priority)
+                allMoveScores.append(moveScores)
+            return allMoveScores
 
         chosenMoves = []
         chosen_move_scores = []

@@ -2,15 +2,15 @@ import copy
 import random
 import time
 from ortools.graph import pywrapgraph
-from card_database import ALL_WONDERS, getCards, PURPLE_CARDS, MANUFACTURED_RESOURCES, NONMANUFACTURED_RESOURCES
-from card import Color, ProductionEffect, RESOURCES, ScoreEffect, GoldEffect, Constant, CardCounter
+from card_database import ALL_WONDERS, getCards, PURPLE_CARDS, MANUFACTURED_RESOURCES, NONMANUFACTURED_RESOURCES, DEFAULT
+from card import Color, ProductionEffect, RESOURCES, ScoreEffect, GoldEffect, Constant, CardCounter, Move
 from card import TradingEffect, ScienceEffect, Science, MilitaryEffect, DefeatCounter, PayOption, WonderCounter, Wonder, Card, FreeCardEffect
 from typing import List, Set
 import numpy as np
 import random
 
 
-PRINT = False
+PRINT = True
 PRINT_VERBOSE = False
 
 
@@ -21,6 +21,8 @@ class State:
         if wonders is None:
             wonders = random.sample(ALL_WONDERS, self.numPlayers)
         self.players = [Player(wonder, name) for wonder, name in zip(wonders, playerNames)]
+        self.playerMoveHistory = [[] for i in range(self.numPlayers)]
+        self.playerNames = playerNames
         for i in range(self.numPlayers):
             self.players[i].leftNeighbor = self.players[(i + 1) % self.numPlayers]
             self.players[i].rightNeighbor = self.players[(i - 1) % self.numPlayers]
@@ -34,11 +36,24 @@ class State:
         for i in range(self.numPlayers):
             self.players[i].hand = cards[i * 7:(i + 1) * 7]
 
+    def getVisibleMoveHistory(self, moves: List[Move]):
+        visibleMoves = []        
+        for move in moves:
+            visibleMove = Move(move.card, move.payOption, move.discard, move.buildWonder, move.wonderStageIndex)
+            if move.discard or move.buildWonder:
+                visibleMove.card = DEFAULT
+            visibleMoves.append(visibleMove)
+        return visibleMoves
+
     def getStateFromPerspective(self, perspective):
         state = copy.copy(self)
         state.players = [self.players[perspective]]
+        state.playerMoveHistory = [self.playerMoveHistory[perspective]]
+        state.playerNames = [self.playerNames[perspective]]
         for i in range(perspective + 1, perspective + state.numPlayers):
             state.players.append(self.players[i % state.numPlayers])
+            state.playerMoveHistory.append(self.getVisibleMoveHistory(self.playerMoveHistory[i % state.numPlayers]))
+            state.playerNames.append(self.playerNames[i % state.numPlayers])
         return state
 
     def getHiddenState(self, perspective):
@@ -133,10 +148,10 @@ class State:
         score += player.getMilitaryScore()
         return score
 
-    def applyEffect(self, effect, player):
+    def applyEffect(self, effect, player, doPrint = PRINT):
         if isinstance(effect, GoldEffect):
             value = self.evaluateCounter(counter=effect.counter, player=player)
-            if PRINT:
+            if doPrint:
                 print('%s received %d gold from the bank' % (self.players[player].name, value))
             self.players[player].gold += value
         elif isinstance(effect, TradingEffect):
@@ -148,9 +163,11 @@ class State:
     # This method is kept for compatibility
     # but it does weird things. The players in this state will be modified
     # even though a copy of the state is returned. The copy of the state is only a shallow copy.
-    def performMoves(self, moves):
+    def performMoves(self, moves, doPrint = PRINT):
         state = copy.copy(self)
-        state.performMovesInPlace(moves)
+        for i in range(self.numPlayers):
+            self.playerMoveHistory[i].append(moves[i])
+        state.performMovesInPlace(moves, doPrint = doPrint)
         return state
 
     # Like performMoves, but does a proper deep copy
@@ -159,20 +176,20 @@ class State:
         state.performMovesInPlace(moves)
         return state
 
-    def performMovesInPlace(self, moves):
+    def performMovesInPlace(self, moves, doPrint = PRINT):
         oldHands = []
         for i in range(self.numPlayers):
-            self.players[i].performMove(moves[i], currentAge = self.age)
+            self.players[i].performMove(moves[i], currentAge = self.age, doPrint = doPrint)
             oldHands.append(self.players[i].hand)
         for i in range(self.numPlayers):
             if moves[i].discard:
                 continue
             if moves[i].buildWonder:
                 for effect in self.players[i].wonder.stages[moves[i].wonderStageIndex].effects:
-                    self.applyEffect(effect, i)
+                    self.applyEffect(effect, i, doPrint = doPrint)
                 continue
             for effect in moves[i].card.effects:
-                self.applyEffect(effect, i)
+                self.applyEffect(effect, i, doPrint = doPrint)
         for i in range(self.numPlayers):
             if (self.age == 2):
                 self.players[i].hand = oldHands[(i + 1) % len(oldHands)]
@@ -350,7 +367,7 @@ class State:
                         break
         return payOptions
 
-    def resolveWar(self):
+    def resolveWar(self, doPrint = PRINT):
         if self.age == 1:
             scoreForVictory = 1
         elif self.age == 2:
@@ -364,14 +381,14 @@ class State:
             if shieldsI > shieldsJ:
                 self.players[i].militaryVictories.append(scoreForVictory)
                 self.players[j].militaryDefeats.append(1)
-                if PRINT:
+                if doPrint:
                     print('%s defeated %s %d-%d' % (self.players[i].name, self.players[j].name, shieldsI, shieldsJ))
             elif shieldsJ > shieldsI:
                 self.players[j].militaryVictories.append(scoreForVictory)
                 self.players[i].militaryDefeats.append(1)
-                if PRINT:
+                if doPrint:
                     print('%s defeated %s %d-%d' % (self.players[j].name, self.players[i].name, shieldsJ, shieldsI))
-        if PRINT:
+        if doPrint:
             print('\n')
 
 
@@ -435,8 +452,8 @@ class Player:
     def useFreeCardEffect(self, age):
         self.forFreeEffectsInAge[age-1] -= 1
 
-    def performMove(self, move, currentAge, removeCardFromHand=True):
-        if PRINT and removeCardFromHand:
+    def performMove(self, move, currentAge, removeCardFromHand=True, doPrint=PRINT):
+        if doPrint and removeCardFromHand:
             self.printMove(move)
         if move.buildWonder:
             self.gold -= move.payOption.totalCost()
