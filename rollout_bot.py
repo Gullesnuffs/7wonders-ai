@@ -37,9 +37,11 @@ class RolloutBot:
         self.rolloutBot = TorchBot(numPlayers, checkpoint_path, name + ' : RolloutBot', False)
         self.baseBot.testingMode = True
         self.rolloutBot.testingMode = True
-        self.rolloutBot.gamesPlayed = 100000
-        self.rolloutCount = 600
+        self.rolloutBot.alwaysPickBestMoveInTestingMode = False
+        self.rolloutCount = 1000
         self.hands = []
+        self.debugPrint = False
+        self.rating = 1000
 
     def onGameStart(self, numGames: int) -> None:
         self.baseBot.onGameStart(numGames)
@@ -76,6 +78,7 @@ class RolloutBot:
         return actualScore
 
     def doRollout(self, state, chosenMoveScore):
+        self.rolloutBot.gamesPlayed = 10000
         hands = [[], [], []]
         handsInTurn = []
         for age in range(3):
@@ -95,7 +98,14 @@ class RolloutBot:
                         if move.card != DEFAULT:
                             hands[age][j].append(move.card)
 
-                hands[age][0] = copy.copy(self.hands[moveNum])
+                if self.debugPrint:
+                    print('Seen hand at age %d, pick %d:' % (age+1, moveInAge+1))
+                    for card in self.hands[moveNum]:
+                        print(card.name)
+                for card in self.hands[moveNum]:
+                    while self.hands[moveNum].count(card) > hands[age][0].count(card):
+                        hands[age][0].append(card)
+                #hands[age][0] = copy.copy(self.hands[moveNum])
                 if moveInAge > 0:
                     oldHands = copy.copy(hands[age])
                     for j in range(state.numPlayers):
@@ -111,10 +121,12 @@ class RolloutBot:
             for card in ALL_CARDS:
                 remainingCards.append((card, cards.count(card)))
             seenPurpleCards = 0
-            #print('Cards in hand:')
+            if self.debugPrint:
+                print('Cards in hand:')
             for j in range(state.numPlayers):
                 for cardInHand in hands[age][j]:
-                    #print(cardInHand.name)
+                    if self.debugPrint:
+                        print(cardInHand.name)
                     if (cardInHand.color == Color.PURPLE):
                         seenPurpleCards += 1
                     for k in range(len(remainingCards)):
@@ -139,28 +151,43 @@ class RolloutBot:
                 for i in range(numCardInstances):
                     unknownCards.append(card)
             random.shuffle(unknownCards)
-            #print('Unknown cards in age %d:' % (age+1))
-            #for card in unknownCards:
-            #    print(card.name)
-            #print('\n')
+            if self.debugPrint:
+                print('Unknown cards in age %d:' % (age+1))
+                for card in unknownCards:
+                    print(card.name)
+                print('\n')
 
             # Fill out hands about which we have incomplete information using cards that haven't been seen yet.
             for j in range(state.numPlayers):
-                #print('Cards known to be in player %d\'s hand at the beginning of age %d:' % (j, age+1))
-                #for card in hands[age][j]:
-                #    print(card.name)
+                if self.debugPrint:
+                    print('Cards known to be in player %d\'s hand at the beginning of age %d:' % (j, age+1))
+                    for card in hands[age][j]:
+                        print(card.name)
                 while len(hands[age][j]) < 7:
                     hands[age][j].append(unknownCards.pop())
-                #print('Cards assumed to be in player %d\'s hand at the beginning of age %d:' % (j, age+1))
-                #for card in hands[age][j]:
-                #    print(card.name)
-                #print('\n')
+                if self.debugPrint:
+                    print('Cards assumed to be in player %d\'s hand at the beginning of age %d:' % (j, age+1))
+                    for card in hands[age][j]:
+                        print(card.name)
+                    print('\n')
             assert(len(unknownCards) == 0)
+
             for moveInAge in range(6):
                 moveNum = age*6+moveInAge
                 if moveNum >= len(self.hands):
                     continue
-                handsInTurn[moveNum] = copy.copy(hands[age])
+                handsInTurn[moveNum] = []
+                for j in range(state.numPlayers):
+                    handsInTurn[moveNum].append(copy.copy(hands[age][j]))
+                if self.debugPrint:
+                    print('Hands in age %d, pick %d' % (age+1, moveInAge+1))
+                    for j in range(state.numPlayers):
+                        for card in handsInTurn[moveNum][j]:
+                            print(card.name)
+                        print('\n')
+                    print('\n')
+                for j in range(state.numPlayers):
+                    assert(len(handsInTurn[moveNum][j]) == 7-moveInAge)
                 for j in range(state.numPlayers):
                     if moveNum < len(state.playerMoveHistory[j]):
                         move = state.playerMoveHistory[j][moveNum]
@@ -172,6 +199,13 @@ class RolloutBot:
                                 if (hands[age][j][k] == move.card):
                                     del hands[age][j][k]
                                     break
+                oldHands = copy.copy(hands[age])
+                for j in range(state.numPlayers):
+                    if (age == 1):
+                        hands[age][j] = oldHands[(j + 1) % len(oldHands)]
+                    else:
+                        hands[age][j] = oldHands[j - 1]
+
         #print('Start rollout')
         self.rolloutBot.onGameStart(state.numPlayers)
         currentState = state
@@ -191,10 +225,12 @@ class RolloutBot:
                 if moveNum < len(self.hands):
                     for i in range(state.numPlayers):
                         state.players[i].hand = handsInTurn[moveNum][i]
-                #if self.PRINT:
-                #    print('Age %d Pick %d' % (age, pick))
-                #    state.print()
-                #    print('\n')
+                if self.debugPrint:
+                    print('Rollout Age %d Pick %d' % (age, pick))
+                    state.print()
+                    print('\n')
+                for i in range(state.numPlayers):
+                    assert(len(state.players[i].hand) == 8-pick)
 
                 inputStates = [state.getStateFromPerspective(playerIndex) for playerIndex in range(state.numPlayers)]
                 if moveNum < len(currentState.playerMoveHistory[0]):
@@ -204,33 +240,45 @@ class RolloutBot:
                     moves = self.rolloutBot.getMoves(inputStates)
                 if moveNum == len(currentState.playerMoveHistory[0]):
                     moves[0] = chosenMoveScore.move
-                state = state.performMoves(moves, doPrint = False)
+                state = state.performMoves(moves, doPrint = self.debugPrint)
             state.resolveWar(doPrint = False)
         self.rolloutBot.onGameFinished([state])
         chosenMoveScore.totalRolloutScore += self.getStateValue(state)
         chosenMoveScore.numRollouts += 1
 
     def getMove(self, state: State):
-        print('getMove from Rollout bot')
-        self.hands.append(state.players[0].hand)
+        #print('getMove from Rollout bot')
+        self.hands.append(copy.copy(state.players[0].hand))
         baseMoveScores = self.baseBot.getMoveScores([state])[0]
         moveScores = [MoveScore(moveScore.move, moveScore.priority) for moveScore in baseMoveScores]
         remainingCards = {card: numCardInstances for (card, numCardInstances) in self.allCardsWithMultiplicities}
         for i in range(state.numPlayers):
             for card in state.players[i].boughtCards:
                 remainingCards[card] -= 1
-        baseScoreRolloutValue = 50
-        for i in range(self.rolloutCount):
+        baseScoreRolloutValue = 30
+        i = 0
+        while True:
+            maxBaseScore = moveScores[0].baseScore
+            maxRolloutScore = 0
+            maxNumRollouts = 0
+            for moveScore in moveScores:
+                maxRolloutScore = max(maxRolloutScore, moveScore.totalRolloutScore / (moveScore.numRollouts + 1.0))
+                maxNumRollouts = max(maxNumRollouts, moveScore.numRollouts)
+            baseScoreBias = maxBaseScore - maxRolloutScore
+
             bestMoveScore = None
             for moveScore in moveScores:
-                valueTerm = (moveScore.totalRolloutScore + moveScore.baseScore * baseScoreRolloutValue) / (moveScore.numRollouts + baseScoreRolloutValue)
-                explorationTerm = 0.2 * math.sqrt(math.log(i+2.0) / (moveScore.numRollouts+1.0))
+                valueTerm = (moveScore.totalRolloutScore + baseScoreBias * moveScore.numRollouts + moveScore.baseScore * baseScoreRolloutValue) / (moveScore.numRollouts + baseScoreRolloutValue)
+                explorationTerm = 0.3 * math.sqrt(math.log(i+2.0) / (moveScore.numRollouts+2.0))
                 score = valueTerm + explorationTerm
                 if bestMoveScore is None or score > bestScore:
                     bestMoveScore = moveScore
                     bestScore = score
+            i += 1
             self.doRollout(state, bestMoveScore)
-            if i%50 == 0:
+            if (i > self.rolloutCount and bestMoveScore.numRollouts > max(self.rolloutCount/3, maxNumRollouts)) or bestMoveScore.numRollouts > self.rolloutCount:
+                break
+            if i%100 == 0:
                 for moveScore in moveScores:
                     print('Rollouts: %d\tBase score: %.4f\tAverage rollout score: %.4f\tMove: %s' % (moveScore.numRollouts, moveScore.baseScore, moveScore.totalRolloutScore / (moveScore.numRollouts + 1e-9), moveScore.move.toString()))
                 print('\n')

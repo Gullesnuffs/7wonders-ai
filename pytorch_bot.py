@@ -163,6 +163,7 @@ class TorchBot:
         self.gamesPlayed = 0
         self.PRINT = False
         self.testingMode = False
+        self.alwaysPickBestMoveInTestingMode = True
         self.name = name
         self.device = torch.device("cpu")
         self.trainer = TrainerRNN(optimizer=torch.optim.Adam(self.model.parameters(), lr=1e-3, weight_decay=0.000001), device=self.device)
@@ -174,6 +175,7 @@ class TorchBot:
             self.tensorboard = TensorBoardWrapper(log_dir=f"tensorboard/{self.name}/{datetime.now():%Y-%m-%d_%H:%M} {comment}")
             self.tensorboard.init()
         self.nash = Nash()
+        self.rating = 1000
 
     def onGameStart(self, numGames: int) -> None:
         self.hiddenStates = torch.zeros((numGames, 2*HIDDEN_STATE_SIZE), dtype=torch.float32)
@@ -404,7 +406,7 @@ class TorchBot:
                 n = self.gamesPlayed + 2
                 targetScore = moveScores[0].priority + \
                     0.7 * math.sqrt(math.log(n) / n)
-                if self.testingMode:
+                if self.testingMode and self.alwaysPickBestMoveInTestingMode:
                     # Always pick best one
                     for i, moveScores in enumerate(moveScores):
                         moveScores.priority = 1 if i == 0 else 0

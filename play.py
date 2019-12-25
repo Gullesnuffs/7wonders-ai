@@ -37,7 +37,7 @@ while True:
         testingMode = True
     if testingMode:
         #bots = [torchBot, torchBot, torchBot, torchBot, randomBot]
-        bots = [rolloutBot, torchBot, torchBot, torchBot, randomBot]
+        bots = [rolloutBot, torchBot, torchBot, torchBot, torchBot]
     else:
         bots = [torchBot, torchBot, torchBot, torchBot, torchBot]
     for bot in bots:
@@ -46,9 +46,9 @@ while True:
     scores = playGames(bots, gamesAtATime)
     all_scores = np.concatenate([all_scores, scores]) if all_scores is not None else scores
     if testingMode or True:
-        for i in range(len(bots)):
-            bots[i].rating = 1000
-        volatility = 20
+        #for i in range(len(bots)):
+        #    bots[i].rating = 1000
+        volatility = 0.3
         while volatility > 0.001:
             simpleScore = [0 for bot in bots]
             for gameInd in range(scores.shape[0]):
