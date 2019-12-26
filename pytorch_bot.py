@@ -322,6 +322,15 @@ class TorchBot:
             for payOption in payOptions:
                 if (payOption.totalCost() <= player.gold):
                     moves.append(Move(card=card, payOption=payOption))
+        i = 0
+        while i < len(moves):
+            for otherMove in moves[i+1:]:
+                move = moves[i]
+                if (move.card == otherMove.card and move.payOption == otherMove.payOption and move.discard == otherMove.discard and move.buildWonder == otherMove.buildWonder):
+                    del moves[i]
+                    i -= 1
+                    break
+            i += 1
         return moves
 
     def observe(self, states: List[State]):

@@ -43,11 +43,12 @@ while True:
     for bot in bots:
         bot.testingMode = testingMode
     gamesAtATime = 1 if (debug or testingMode) else 100
+    #gamesAtATime = 100
     scores = playGames(bots, gamesAtATime)
     all_scores = np.concatenate([all_scores, scores]) if all_scores is not None else scores
     if testingMode or True:
-        #for i in range(len(bots)):
-        #    bots[i].rating = 1000
+        for i in range(len(bots)):
+            bots[i].rating = 1000
         volatility = 0.3
         while volatility > 0.001:
             simpleScore = [0 for bot in bots]

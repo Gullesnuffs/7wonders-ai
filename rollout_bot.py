@@ -24,6 +24,22 @@ class MoveScore:
         self.baseScore = baseScore
         self.numRollouts = 0
         self.totalRolloutScore = 0
+        self.totalSquaredRolloutScore = 0
+        self.update()
+
+    def update(self, stddevs = 3.0):
+        self.averageRolloutScore = self.totalRolloutScore / max(1.0, self.numRollouts)
+        self.averageSquaredRolloutScore = self.totalSquaredRolloutScore / max(1.0, self.numRollouts)
+        baseScoreRolloutValue = 40
+        self.weightedScore = (self.baseScore * baseScoreRolloutValue + self.totalRolloutScore) / (baseScoreRolloutValue + self.numRollouts)
+        baseVariance = 0.1
+        if self.move.discard:
+            stddevs *= 0.7
+        if self.move.buildWonder:
+            stddevs *= 0.8
+        self.totalVariance = baseVariance + (self.averageSquaredRolloutScore - 2*self.weightedScore*self.averageRolloutScore + self.weightedScore*self.weightedScore) * self.numRollouts
+        self.stddev = math.sqrt(self.totalVariance)/(1.0 + self.numRollouts)
+        self.upperBound = self.weightedScore + stddevs*self.stddev
 
 class RolloutBot:
     def __init__(self, numPlayers: int, checkpoint_path: str, name: str, writeToTensorboard = True):
@@ -38,7 +54,7 @@ class RolloutBot:
         self.baseBot.testingMode = True
         self.rolloutBot.testingMode = True
         self.rolloutBot.alwaysPickBestMoveInTestingMode = False
-        self.rolloutCount = 1000
+        self.rolloutCount = 1200
         self.hands = []
         self.debugPrint = False
         self.rating = 1000
@@ -77,7 +93,12 @@ class RolloutBot:
             actualScore += winValue
         return actualScore
 
-    def doRollout(self, state, chosenMoveScore):
+    def doRollout(self, state, chosenMoveScores):
+        if self.debugPrint:
+            print('Doing rollout for the following moves:')
+            for chosenMoveScore in chosenMoveScores:
+                print(chosenMoveScore.move.toString())
+            print('\n')
         self.rolloutBot.gamesPlayed = 10000
         hands = [[], [], []]
         handsInTurn = []
@@ -206,45 +227,68 @@ class RolloutBot:
                     else:
                         hands[age][j] = oldHands[j - 1]
 
-        #print('Start rollout')
-        self.rolloutBot.onGameStart(state.numPlayers)
+        if self.debugPrint:
+            print('Start rollout')
+        self.rolloutBot.onGameStart(state.numPlayers * len(chosenMoveScores))
         currentState = state
         wonders = [state.players[i].wonder for i in range(state.numPlayers)]
-        state = State(state.playerNames, wonders)
-        for i in range(state.numPlayers):
-            bonus = self.rolloutBot.getBonus()
-            state.players[i].bonus = bonus
-            state.players[i].scienceBonus = bonus.scienceBonus
-            state.players[i].militaryBonus = bonus.militaryBonus
+        states = []
+        for chosenMoveScore in chosenMoveScores:
+            state = State(state.playerNames, wonders)
+            for i in range(state.numPlayers):
+                bonus = self.rolloutBot.getBonus()
+                state.players[i].bonus = bonus
+                state.players[i].scienceBonus = bonus.scienceBonus
+                state.players[i].militaryBonus = bonus.militaryBonus
+            states.append(state)
 
         for age in range(1, 4):
-            state.initAge(age)
+            for state in states:
+                state.initAge(age)
 
             for pick in range(1, 7):
                 moveNum = (age-1)*6+(pick-1)
                 if moveNum < len(self.hands):
                     for i in range(state.numPlayers):
-                        state.players[i].hand = handsInTurn[moveNum][i]
+                        for state in states:
+                            state.players[i].hand = copy.copy(handsInTurn[moveNum][i])
                 if self.debugPrint:
-                    print('Rollout Age %d Pick %d' % (age, pick))
-                    state.print()
+                    for state in states:
+                        print('Rollout Age %d Pick %d' % (age, pick))
+                        state.print()
                     print('\n')
-                for i in range(state.numPlayers):
-                    assert(len(state.players[i].hand) == 8-pick)
+                for state in states:
+                    for i in range(state.numPlayers):
+                        assert(len(state.players[i].hand) == 8-pick)
 
-                inputStates = [state.getStateFromPerspective(playerIndex) for playerIndex in range(state.numPlayers)]
+                inputStates = [state.getStateFromPerspective(playerIndex) for state in states for playerIndex in range(state.numPlayers)]
                 if moveNum < len(currentState.playerMoveHistory[0]):
                     moves = self.rolloutBot.getMoves(inputStates)
-                    moves = [currentState.playerMoveHistory[i][moveNum] for i in range(state.numPlayers)]
+                    moves = [currentState.playerMoveHistory[i][moveNum] for state in states for i in range(state.numPlayers)]
                 else:
                     moves = self.rolloutBot.getMoves(inputStates)
                 if moveNum == len(currentState.playerMoveHistory[0]):
-                    moves[0] = chosenMoveScore.move
-                state = state.performMoves(moves, doPrint = self.debugPrint)
-            state.resolveWar(doPrint = False)
-        self.rolloutBot.onGameFinished([state])
-        chosenMoveScore.totalRolloutScore += self.getStateValue(state)
-        chosenMoveScore.numRollouts += 1
+                    for i in range(len(states)):
+                        moves[i*currentState.numPlayers] = chosenMoveScores[i].move
+                for i in range(len(states)):
+                    states[i] = states[i].performMoves(moves[i*currentState.numPlayers:(i+1)*currentState.numPlayers], doPrint = self.debugPrint)
+            for state in states:
+                state.resolveWar(doPrint = False)
+        stddevs = 4.0*math.pow(self.totalRollouts + 1.0, -0.1)
+        for i in range(len(states)):
+            chosenMoveScore = chosenMoveScores[i]
+            stateValue = self.getStateValue(states[i])
+            chosenMoveScore.totalRolloutScore += stateValue
+            chosenMoveScore.totalSquaredRolloutScore += stateValue * stateValue
+            chosenMoveScore.numRollouts += 1
+            chosenMoveScore.update(stddevs = stddevs)
+
+    def printScores(self, moveScores):
+        sortedMoveScores = sorted(moveScores, key=lambda x: x.weightedScore, reverse=True)
+        print('Rollouts\tScore Base\tScore Rollout\tScore weighted\tStd. dev.\tUpper bound\tMove')
+        for moveScore in sortedMoveScores:
+            print('%d\t\t%.4f\t\t%.4f\t\t%.4f\t\t%.4f\t\t%.4f\t\t%s' % (moveScore.numRollouts, moveScore.baseScore, moveScore.averageRolloutScore, moveScore.weightedScore, moveScore.stddev, moveScore.upperBound, moveScore.move.toString()))
+        print('\n')
 
     def getMove(self, state: State):
         #print('getMove from Rollout bot')
@@ -255,39 +299,59 @@ class RolloutBot:
         for i in range(state.numPlayers):
             for card in state.players[i].boughtCards:
                 remainingCards[card] -= 1
+        if (len(moveScores) == 1):
+            return moveScores[0].move
         baseScoreRolloutValue = 30
         i = 0
+        self.totalRollouts = 0
+        lastTotalRollouts = 0
         while True:
-            maxBaseScore = moveScores[0].baseScore
-            maxRolloutScore = 0
-            maxNumRollouts = 0
-            for moveScore in moveScores:
-                maxRolloutScore = max(maxRolloutScore, moveScore.totalRolloutScore / (moveScore.numRollouts + 1.0))
-                maxNumRollouts = max(maxNumRollouts, moveScore.numRollouts)
-            baseScoreBias = maxBaseScore - maxRolloutScore
+            #maxBaseScore = moveScores[0].baseScore
+            #maxRolloutScore = 0
+            #maxNumRollouts = 0
+            #for moveScore in moveScores:
+            #    maxRolloutScore = max(maxRolloutScore, moveScore.totalRolloutScore / (moveScore.numRollouts + 1.0))
+            #    maxNumRollouts = max(maxNumRollouts, moveScore.numRollouts)
+            #baseScoreBias = maxBaseScore - maxRolloutScore
 
-            bestMoveScore = None
+            #bestMoveScore = None
+            #for moveScore in moveScores:
+            #    score = moveScore.upperBound
+                #valueTerm = (moveScore.totalRolloutScore + baseScoreBias * moveScore.numRollouts + moveScore.baseScore * baseScoreRolloutValue) / (moveScore.numRollouts + baseScoreRolloutValue)
+                #explorationTerm = 0.3 * math.sqrt(math.log(i+2.0) / (moveScore.numRollouts+2.0))
+                #score = valueTerm + explorationTerm
+            #    if bestMoveScore is None or score > bestScore:
+            #        bestMoveScore = moveScore
+            #        bestScore = score
+            maxWeightedScore = 0
+            bestScoreLowerBound = 0
+            upperBounds = []
             for moveScore in moveScores:
-                valueTerm = (moveScore.totalRolloutScore + baseScoreBias * moveScore.numRollouts + moveScore.baseScore * baseScoreRolloutValue) / (moveScore.numRollouts + baseScoreRolloutValue)
-                explorationTerm = 0.3 * math.sqrt(math.log(i+2.0) / (moveScore.numRollouts+2.0))
-                score = valueTerm + explorationTerm
-                if bestMoveScore is None or score > bestScore:
-                    bestMoveScore = moveScore
-                    bestScore = score
+                if (moveScore.weightedScore > maxWeightedScore):
+                    maxWeightedScore = moveScore.weightedScore
+                    bestScoreLowerBound = moveScore.weightedScore - moveScore.stddev
+                upperBounds.append(moveScore.upperBound)
+            upperBounds.sort()
+            largestUpperBound = upperBounds[-1]
+            secondLargestUpperBound = upperBounds[-2]
+            minUpperBound = (largestUpperBound + maxWeightedScore) / 2.0
+            moveScoresWithRollouts = []
+            for moveScore in moveScores:
+                if moveScore.upperBound > minUpperBound:
+                    moveScoresWithRollouts.append(moveScore)
             i += 1
-            self.doRollout(state, bestMoveScore)
-            if (i > self.rolloutCount and bestMoveScore.numRollouts > max(self.rolloutCount/3, maxNumRollouts)) or bestMoveScore.numRollouts > self.rolloutCount:
+            self.doRollout(state, moveScoresWithRollouts)
+            self.totalRollouts += len(moveScoresWithRollouts)
+            if secondLargestUpperBound < bestScoreLowerBound + math.sqrt(self.totalRollouts)*0.001 or self.totalRollouts > self.rolloutCount:
                 break
-            if i%100 == 0:
-                for moveScore in moveScores:
-                    print('Rollouts: %d\tBase score: %.4f\tAverage rollout score: %.4f\tMove: %s' % (moveScore.numRollouts, moveScore.baseScore, moveScore.totalRolloutScore / (moveScore.numRollouts + 1e-9), moveScore.move.toString()))
-                print('\n')
+            if self.totalRollouts >= lastTotalRollouts+100 or self.debugPrint:
+                self.printScores(moveScores)
+                lastTotalRollouts = self.totalRollouts
         bestMoveScore = moveScores[0]
+        self.printScores(moveScores)
         for moveScore in moveScores:
-            print('Rollouts: %d\tBase score: %.4f\tAverage rollout score: %.4f\tMove: %s' % (moveScore.numRollouts, moveScore.baseScore, moveScore.totalRolloutScore / (moveScore.numRollouts + 1e-9), moveScore.move.toString()))
-            if moveScore.numRollouts > bestMoveScore.numRollouts:
+            if moveScore.weightedScore > bestMoveScore.weightedScore:
                 bestMoveScore = moveScore
-        print('\n')
         return bestMoveScore.move
 
     def getMoves(self, states: List[State]):
