@@ -1,5 +1,6 @@
 from dnn_reference_bot import DNNReferenceBot
 from pytorch_bot import TorchBot
+from rollout_bot import RolloutBot
 from card_database import getCards, PURPLE_CARDS, ALL_WONDERS, DEFAULT
 from control import State
 from card import PayOption, Move, Color
@@ -147,8 +148,8 @@ class FakeBot:
 def playGame():
     players = getNumber('Number of players: ')
     torchBot = TorchBot(players, 'pytorchbot/torchbot.pt', 'TorchBot', writeToTensorboard=False)
-    bot = torchBot
-    #bot = scienceTorchBot
+    rolloutBot = RolloutBot(players, 'pytorchbot/torchbot.pt', 'RolloutBot')
+    bot = rolloutBot
     bot.testingMode = True
     bot.PRINT = PRINT
     bot.onGameStart(1)

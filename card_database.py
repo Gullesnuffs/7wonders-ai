@@ -11,6 +11,8 @@ def getCards(age, players):
             cards += AGE1_4PLAYERS
         if players >= 5:
             cards += AGE1_5PLAYERS
+        if players >= 6:
+            cards += AGE1_6PLAYERS
     if (age == 2):
         if players >= 3:
             cards += AGE2_3PLAYERS
@@ -18,6 +20,8 @@ def getCards(age, players):
             cards += AGE2_4PLAYERS
         if players >= 5:
             cards += AGE2_5PLAYERS
+        if players >= 6:
+            cards += AGE2_6PLAYERS
     if (age == 3):
         if players >= 3:
             cards += AGE3_3PLAYERS
@@ -25,6 +29,8 @@ def getCards(age, players):
             cards += AGE3_4PLAYERS
         if players >= 5:
             cards += AGE3_5PLAYERS
+        if players >= 6:
+            cards += AGE3_6PLAYERS
     return copy.copy(cards)
 
 def getAllCardsWithMultiplicities(players):
@@ -820,6 +826,15 @@ AGE1_5PLAYERS = [
     BARRACKS,
     APOTHECARY,
 ]
+AGE1_6PLAYERS = [
+    TREE_FARM,
+    MINE,
+    LOOM,
+    GLASSWORKS,
+    PRESS,
+    THEATER,
+    MARKETPLACE,
+]
 
 AGE2_3PLAYERS = [
     SAWMILL,
@@ -862,6 +877,15 @@ AGE2_5PLAYERS = [
     LABORATORY,
     COURTHOUSE,
 ]
+AGE2_6PLAYERS = [
+    TEMPLE,
+    FORUM,
+    CARAVANSERY,
+    VINEYARD,
+    TRAINING_GROUND,
+    ARCHERY_RANGE,
+    LIBRARY,
+]
 
 AGE3_3PLAYERS = [
     PANTHEON,
@@ -896,6 +920,14 @@ AGE3_5PLAYERS = [
     SIEGE_WORKSHOP,
     SENATE,
     STUDY,
+]
+AGE3_6PLAYERS = [
+    PANTHEON,
+    TOWN_HALL,
+    LIGHTHOUSE,
+    CHAMBER_OF_COMMERCE,
+    CIRCUS,
+    LODGE,
 ]
 
 RHODES_A = Wonder(

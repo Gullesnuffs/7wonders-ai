@@ -13,37 +13,39 @@ import numpy as np
 
 randomBot = RandomBot()
 scienceBot = ScienceBot()
-numPlayers = 5
+numPlayers = 6
 # dnnReferenceBot = DNNReferenceBot(3)
 # dnnReferenceBot = DNNReferenceBot(3)
 torchBot = TorchBot(numPlayers, 'pytorchbot/torchbot.pt', 'TorchBot')
 rolloutBot = RolloutBot(numPlayers, 'pytorchbot/torchbot.pt', 'RolloutBot')
 
-# random.seed(2)
+#random.seed(3)
 debug = False
 games = 0
 all_scores = None
 iterationNumber = 0
+testRolloutBot = True
 while True:
     torchBot.nash.printState()
     print('Game %d' % (games + 1))
-    if (iterationNumber % 10 == 0):
+    if (iterationNumber % 10 == 0 or testRolloutBot):
         testingMode = True
     else:
         testingMode = False
-    testingMode = True
+    #testingMode = True
     iterationNumber += 1
     if debug:
         testingMode = True
+    bots = []
+    for i in range(numPlayers):
+        bots.append(torchBot)
     if testingMode:
-        #bots = [torchBot, torchBot, torchBot, torchBot, randomBot]
-        bots = [rolloutBot, torchBot, torchBot, torchBot, torchBot]
-    else:
-        bots = [torchBot, torchBot, torchBot, torchBot, torchBot]
+        bots[-1] = randomBot
+        if testRolloutBot:
+            bots[-1] = rolloutBot
     for bot in bots:
         bot.testingMode = testingMode
-    gamesAtATime = 1 if (debug or testingMode) else 100
-    #gamesAtATime = 100
+    gamesAtATime = 1 if (debug or (testingMode and testRolloutBot)) else 100
     scores = playGames(bots, gamesAtATime)
     all_scores = np.concatenate([all_scores, scores]) if all_scores is not None else scores
     if testingMode or True:

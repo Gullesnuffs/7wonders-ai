@@ -595,7 +595,7 @@ def playGames(bots, numGames) -> np.ndarray:
             moves_by_player = [[] for _ in range(len(bots))]
             for bot, group in zip(group_bot, player_groups):
                 inputStates = [state.getStateFromPerspective(playerIndex) for playerIndex in group for state in states]
-                bot.observe(inputStates)
+                # bot.observe(inputStates)
                 moves = bot.getMoves(inputStates)
                 for playerIndex in group:
                     moves_by_player[playerIndex] = moves[:numGames]

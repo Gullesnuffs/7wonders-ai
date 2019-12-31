@@ -15,15 +15,19 @@ class Bonus:
         if random.random() < 0.3:
             scienceBonusBase = 0
             militaryBonusBase = 0
-        return Bonus(scienceBonus = random.gauss(scienceBonusBase, 0.005),
-                militaryBonus = random.gauss(militaryBonusBase, 0.005))
+        return Bonus(scienceBonus = random.gauss(scienceBonusBase, 0.01),
+                militaryBonus = random.gauss(militaryBonusBase, 0.01))
 
 class Nash:
 
-    def __init__(self):
+    def __init__(self, independent = False):
         self.bonuses = [Bonus()]
         self.n = 1
-        self.nextNewBonus = 1000
+        self.nextNewBonus = 100
+        self.independent = independent
+        if independent:
+            self.scienceNash = Nash()
+            self.militaryNash = Nash()
 
     def updateScores(self, winner, loser):
         winner.n += 1
@@ -34,10 +38,28 @@ class Nash:
             self.nextNewBonus *= 1.1
             self.bonuses.append(winner.perturb())
 
+    def updateScore(self, bonus, value):
+        if self.independent:
+            self.scienceNash.updateScore(bonus.science, value)
+            self.militaryNash.updateScore(bonus.military, value)
+            return
+        bonus.n += 1
+        bonus.won += value
+        if bonus.n > self.nextNewBonus:
+            self.nextNewBonus *= 1.1
+            self.bonuses.append(bonus.perturb())
+
     def getBonus(self):
+        if self.independent:
+            bonus = Bonus()
+            bonus.science = self.scienceNash.getBonus()
+            bonus.scienceBonus = bonus.science.scienceBonus
+            bonus.military = self.militaryNash.getBonus()
+            bonus.militaryBonus = bonus.military.militaryBonus
+            return bonus
         bestScore = -1000
         for bonus in self.bonuses:
-            score = (bonus.won + 0.5) / (bonus.n + 1.0) + 0.6 * math.sqrt(math.log(self.n) / (bonus.n + 100.0)) + random.random() * math.pow(self.n, -0.1)
+            score = (bonus.won + 0.5) / (bonus.n + 1.0) + 0.2 * math.sqrt(math.log(self.n) / (bonus.n + 100.0)) + random.random() * math.pow(self.n, -0.1)
             if random.random() < 0.002:
                 score += 0.2
             if random.random() < 0.0005:
@@ -47,8 +69,22 @@ class Nash:
                 bestBonus = bonus
         return bestBonus
 
-    def printState(self):
+    def printState(self, onlyScience = False, onlyMilitary = False):
+        if self.independent:
+            print('Science:')
+            self.scienceNash.printState(onlyScience = True)
+            print('\nMilitary:')
+            self.militaryNash.printState(onlyMilitary = True)
+            return
         self.bonuses.sort(key=lambda x: -x.won/(x.n+1.0))
-        print('Science bonus\tMilitary bonus\twon\tn\twon/n')
-        for bonus in self.bonuses:
-            print('%.4f\t\t%.4f\t\t%d\t%d\t%.4f' % (bonus.scienceBonus, bonus.militaryBonus, bonus.won, bonus.n, bonus.won/(bonus.n+1e-9)))
+        if onlyScience or onlyMilitary:
+            for bonus in self.bonuses:
+                if onlyScience:
+                    bonusValue = bonus.scienceBonus
+                elif onlyMilitary:
+                    bonusValue = bonus.militaryBonus
+                print('%.4f\t\t%.1f\t%d\t%.4f' % (bonusValue, bonus.won, bonus.n, bonus.won/(bonus.n+1e-9)))
+        else:
+            print('Science bonus\tMilitary bonus\twon\tn\twon/n')
+            for bonus in self.bonuses:
+                print('%.4f\t\t%.4f\t\t%.1f\t%d\t%.4f' % (bonus.scienceBonus, bonus.militaryBonus, bonus.won, bonus.n, bonus.won/(bonus.n+1e-9)))

@@ -84,14 +84,15 @@ class Net(nn.Module):
         x = F.relu(self.lin1(x))
         x = F.relu(self.lin2(x))
 
-        perActionCompressedStates = torch.index_select(x, dim=0, index=actionToStateMapping)
+        if actionToStateMapping is not None:
+            perActionCompressedStates = torch.index_select(x, dim=0, index=actionToStateMapping)
 
-        perActionStates = F.relu(self.alin1(perActionStates))
-        perActionStates = torch.cat([perActionStates, perActionCompressedStates], dim=1)
+            perActionStates = F.relu(self.alin1(perActionStates))
+            perActionStates = torch.cat([perActionStates, perActionCompressedStates], dim=1)
 
-        perActionStates = F.relu(self.alin2(perActionStates))
-        perActionStates = F.relu(self.alin3(perActionStates))
-        perActionStates = self.alin4(perActionStates)
+            perActionStates = F.relu(self.alin2(perActionStates))
+            perActionStates = F.relu(self.alin3(perActionStates))
+            perActionStates = self.alin4(perActionStates)
 
         return perActionStates, torch.cat([lstmState1, lstmState2], axis=1)
 
@@ -157,7 +158,7 @@ class TorchBot:
         self.numCardsWithMultiplicities = getNumCardsWithMultiplicities(numPlayers)
         stateSize = self.getStateTensorDimension(self.numPlayers)
         self.model = Net(stateSize)
-        self.checkpoint_path = checkpoint_path
+        self.checkpoint_path = checkpoint_path + '_' + str(numPlayers)
         if os.path.exists(self.checkpoint_path):
             self.model.load_state_dict(torch.load(self.checkpoint_path))
         self.gamesPlayed = 0
@@ -334,9 +335,8 @@ class TorchBot:
         return moves
 
     def observe(self, states: List[State]):
-        # tensors = torch.as_tensor(np.stack([TorchBot.getStateTensor(state) for state in states]))
-        # _, self.hiddenStates = self.model(tensors, self.hiddenStates)
-        pass
+        stateTensors = torch.as_tensor(np.stack([self.getStateTensor(state) for state in states]))
+        _, self.hiddenStates = self.model(stateTensors, self.hiddenStates, None, None)
 
     def backprop(self, chosen_move_scores: Optional[torch.tensor], expected_scores_for_best_move: torch.tensor):
         '''
